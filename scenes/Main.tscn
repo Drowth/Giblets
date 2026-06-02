@@ -36,6 +36,13 @@ volume_db = -8.0
 volume_db = -6.0
 max_polyphony = 4
 
+[node name="LevelUpSFX" type="AudioStreamPlayer" parent="."]
+volume_db = -4.0
+
 [node name="SpawnTimer" type="Timer" parent="."]
 wait_time = 2.0
+autostart = true
+
+[node name="BossTimer" type="Timer" parent="."]
+wait_time = 60.0
 autostart = true

@@ -1,5 +1,14 @@
 class_name UpgradeData
 
+# WoW item quality colours
+const RARITY_COLORS: Dictionary = {
+	"common":    Color(1.000, 1.000, 1.000),  # #ffffff
+	"uncommon":  Color(0.118, 1.000, 0.000),  # #1eff00
+	"rare":      Color(0.000, 0.439, 0.867),  # #0070dd
+	"epic":      Color(0.639, 0.208, 0.933),  # #a335ee
+	"legendary": Color(1.000, 0.502, 0.000),  # #ff8000
+}
+
 const ALL_UPGRADES: Array[Dictionary] = [
 	{
 		"id": "speed_1", "name": "Fleet Feet", "rarity": "common",
@@ -73,6 +82,18 @@ const ALL_UPGRADES: Array[Dictionary] = [
 		"color": Color(1.0, 0.2, 0.2),
 		"stat": "max_health", "add": 50
 	},
+	{
+		"id": "knockback_1", "name": "Soul Repel", "rarity": "rare",
+		"description": "Strikes send enemies reeling backward",
+		"color": Color(0.55, 0.15, 1.0),
+		"stat": "knockback_force", "add": 220
+	},
+	{
+		"id": "knockback_2", "name": "Banishment", "rarity": "uncommon",
+		"description": "Knockback grows more savage — enemies flung further",
+		"color": Color(0.7, 0.1, 1.0),
+		"stat": "knockback_force", "add": 180
+	},
 ]
 
 static func get_random_choices(count: int = 3) -> Array[Dictionary]:
@@ -101,3 +122,5 @@ static func apply_upgrade(upgrade: Dictionary) -> void:
 			GameState.projectile_count += upgrade.get("add", 0)
 		"projectile_pierce":
 			GameState.projectile_pierce += upgrade.get("add", 0)
+		"knockback_force":
+			GameState.knockback_force += upgrade.get("add", 0)

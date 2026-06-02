@@ -25,6 +25,7 @@ var fire_rate: float = 1.5
 var xp_magnet_range: float = 120.0
 var projectile_count: int = 1
 var projectile_pierce: int = 0
+var knockback_force: float = 0.0
 
 var _pending_level_ups: int = 0
 
@@ -46,6 +47,7 @@ func _reset() -> void:
 	xp_magnet_range = 120.0
 	projectile_count = 1
 	projectile_pierce = 0
+	knockback_force = 0.0
 	_pending_level_ups = 0
 	score = 0
 	enemies_killed = 0

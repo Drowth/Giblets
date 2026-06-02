@@ -18,5 +18,4 @@ func setup(upgrade: Dictionary) -> void:
 	name_label.text = upgrade.get("name", "???")
 	desc_label.text = upgrade.get("description", "")
 	rarity_label.text = "[%s]" % upgrade.get("rarity", "common").to_upper()
-	var rarity_colors := {"common": Color(0.7, 0.7, 0.7), "uncommon": Color(0.3, 0.9, 0.3), "rare": Color(0.4, 0.4, 1.0)}
-	rarity_label.modulate = rarity_colors.get(upgrade.get("rarity", "common"), Color.WHITE)
+	rarity_label.modulate = UpgradeData.RARITY_COLORS.get(upgrade.get("rarity", "common"), Color.WHITE)
