@@ -12,7 +12,7 @@ var enemies_killed: int = 0
 
 var player_level: int = 1
 var player_xp: int = 0
-var xp_to_next_level: int = 80
+var xp_to_next_level: int = 40
 var player_health: int = 100
 var player_max_health: int = 100
 var elapsed_time: float = 0.0
@@ -35,7 +35,7 @@ func start_game() -> void:
 func _reset() -> void:
 	player_level = 1
 	player_xp = 0
-	xp_to_next_level = 80
+	xp_to_next_level = 40
 	player_health = 100
 	player_max_health = 100
 	elapsed_time = 0.0
@@ -68,7 +68,7 @@ func add_xp(amount: int) -> void:
 
 func _do_level_up() -> void:
 	player_level += 1
-	xp_to_next_level = int(xp_to_next_level * 1.35)
+	xp_to_next_level = int(xp_to_next_level * 1.4)
 	level_changed.emit(player_level)
 	_pending_level_ups += 1
 	level_up_triggered.emit()

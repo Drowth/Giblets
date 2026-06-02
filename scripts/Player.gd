@@ -2,17 +2,19 @@ extends CharacterBody2D
 
 const PROJECTILE_SCENE = preload("res://scenes/Projectile.tscn")
 
-const TEX_LVL1 = preload("res://assets/player/player.png")
-const TEX_LVL2 = preload("res://assets/player/player2.png")
-const TEX_LVL3 = preload("res://assets/player/player3.png")
+const TEX_LVL1        = preload("res://assets/player/player.png")
+const TEX_LVL2        = preload("res://assets/player/player2.png")
+const TEX_LVL3        = preload("res://assets/player/player3.png")
+const BLOOD_DROP      = preload("res://scripts/BloodTrailDrop.gd")
 
 @onready var attack_timer:  Timer           = $AttackTimer
 @onready var iframes_timer: Timer           = $IFramesTimer
 @onready var sprite:        Sprite2D        = $Sprite2D
 @onready var anim_player:   AnimationPlayer = $AnimationPlayer
 
-var is_invincible: bool   = false
+var is_invincible: bool     = false
 var _proj_container: Node2D = null
+var _trail_timer: float     = 0.0
 
 func _ready() -> void:
 	add_to_group("player")
@@ -55,7 +57,7 @@ func _build_animations() -> void:
 
 	anim_player.add_animation_library("", lib)
 
-func _physics_process(_delta: float) -> void:
+func _physics_process(delta: float) -> void:
 	var dir := Vector2(
 		Input.get_axis("ui_left", "ui_right"),
 		Input.get_axis("ui_up", "ui_down")
@@ -72,7 +74,14 @@ func _physics_process(_delta: float) -> void:
 	global_position.y = clampf(global_position.y, 20.0, vp.size.y - 20.0)
 
 	var moving := velocity.length() > 5.0
-	var cur    := anim_player.current_animation
+
+	if moving:
+		_trail_timer -= delta
+		if _trail_timer <= 0.0:
+			_trail_timer = 0.1
+			_leave_blood_trail()
+
+	var cur := anim_player.current_animation
 	if moving and cur != "walk":
 		anim_player.play("walk")
 	elif not moving and cur != "idle":
@@ -126,6 +135,13 @@ func _flash_damage() -> void:
 		await get_tree().create_timer(0.07).timeout
 		modulate = Color.WHITE
 		await get_tree().create_timer(0.07).timeout
+
+func _leave_blood_trail() -> void:
+	var drop := Node2D.new()
+	drop.set_script(BLOOD_DROP)
+	get_parent().add_child(drop)
+	drop.global_position = global_position + Vector2(randf_range(-5, 5), randf_range(3, 9))
+	drop.setup(randf_range(1.5, 3.5), Color(randf_range(0.35, 0.6), 0.0, 0.0, 1.0))
 
 func _on_level_changed(new_level: int) -> void:
 	if new_level >= 4:

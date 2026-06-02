@@ -27,4 +27,7 @@ func _process(delta: float) -> void:
 		dist = global_position.distance_to(_player.global_position)
 	if dist < 14.0:
 		GameState.add_xp(xp_value)
+		var sfx = get_tree().get_first_node_in_group("xp_pickup_sfx")
+		if sfx:
+			sfx.play()
 		queue_free()

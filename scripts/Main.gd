@@ -8,7 +8,8 @@ const ENEMY_SCENE = preload("res://scenes/Enemy.tscn")
 @onready var spawn_timer: Timer = $SpawnTimer
 @onready var level_up_screen = $UI/LevelUpScreen
 @onready var hud = $UI/HUD
-@onready var music_player: AudioStreamPlayer = $MusicPlayer
+@onready var music_player:    AudioStreamPlayer = $MusicPlayer
+@onready var xp_pickup_sfx:   AudioStreamPlayer = $XPPickupSFX
 
 func _ready() -> void:
 	_setup_inputs()
@@ -20,6 +21,7 @@ func _ready() -> void:
 	GameState.game_over.connect(_on_game_over)
 	GameState.start_game()
 	_start_music()
+	_load_xp_sfx()
 	if level_up_screen:
 		level_up_screen.connect("upgrade_chosen", _on_upgrade_chosen)
 		level_up_screen.hide()
@@ -32,6 +34,17 @@ func _start_music() -> void:
 		stream.loop = true
 		music_player.stream = stream
 		music_player.play()
+
+func _load_xp_sfx() -> void:
+	if not xp_pickup_sfx:
+		return
+	for ext in ["wav", "ogg", "mp3"]:
+		var path := "res://assets/sfx/xp_pickup.%s" % ext
+		var stream = load(path) if ResourceLoader.exists(path) else null
+		if stream:
+			xp_pickup_sfx.stream = stream
+			xp_pickup_sfx.add_to_group("xp_pickup_sfx")
+			return
 
 func _setup_inputs() -> void:
 	var wasd := {"ui_left": KEY_A, "ui_right": KEY_D, "ui_up": KEY_W, "ui_down": KEY_S}

@@ -175,7 +175,7 @@ func _drop_xp() -> void:
 		_xp_container = get_tree().get_first_node_in_group("xp_orbs_container")
 	if not _xp_container:
 		return
-	var orb_count := clampi(xp_value / 5, 1, 6)
+	var orb_count := clampi(xp_value / 20, 1, 3)
 	var orb_xp    := xp_value / orb_count
 	for i in orb_count:
 		var orb = XP_ORB_SCENE.instantiate()

@@ -22,21 +22,33 @@ theme_override_constants/margin_bottom = 4
 [node name="HBox" type="HBoxContainer" parent="TopBar/MarginContainer"]
 anchor_right = 1.0
 anchor_bottom = 1.0
-theme_override_constants/separation = 12
+theme_override_constants/separation = 8
 
 [node name="HealthBar" type="ProgressBar" parent="TopBar/MarginContainer/HBox"]
-custom_minimum_size = Vector2(200, 22)
+custom_minimum_size = Vector2(150, 22)
 max_value = 100.0
 value = 100.0
 show_percentage = false
 size_flags_vertical = 4
 
+[node name="HealthText" type="Label" parent="TopBar/MarginContainer/HBox"]
+text = "100 / 100"
+size_flags_vertical = 4
+theme_override_font_sizes/font_size = 12
+theme_override_colors/font_color = Color(0.75, 0.75, 0.75, 1)
+
 [node name="XPBar" type="ProgressBar" parent="TopBar/MarginContainer/HBox"]
-custom_minimum_size = Vector2(240, 22)
+custom_minimum_size = Vector2(180, 22)
 max_value = 100.0
 value = 0.0
 show_percentage = false
 size_flags_vertical = 4
+
+[node name="XPText" type="Label" parent="TopBar/MarginContainer/HBox"]
+text = "0 / 40  (40 to go)"
+size_flags_vertical = 4
+theme_override_font_sizes/font_size = 12
+theme_override_colors/font_color = Color(0.75, 0.75, 0.75, 1)
 
 [node name="LevelLabel" type="Label" parent="TopBar/MarginContainer/HBox"]
 text = "LVL 1"

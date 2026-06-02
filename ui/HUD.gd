@@ -1,10 +1,12 @@
 extends Control
 
-@onready var health_bar: ProgressBar = $TopBar/MarginContainer/HBox/HealthBar
-@onready var xp_bar: ProgressBar = $TopBar/MarginContainer/HBox/XPBar
-@onready var level_label: Label = $TopBar/MarginContainer/HBox/LevelLabel
-@onready var score_label: Label = $TopBar/MarginContainer/HBox/ScoreLabel
-@onready var timer_label: Label = $TopBar/MarginContainer/HBox/TimerLabel
+@onready var health_bar:  ProgressBar = $TopBar/MarginContainer/HBox/HealthBar
+@onready var health_text: Label       = $TopBar/MarginContainer/HBox/HealthText
+@onready var xp_bar:      ProgressBar = $TopBar/MarginContainer/HBox/XPBar
+@onready var xp_text:     Label       = $TopBar/MarginContainer/HBox/XPText
+@onready var level_label: Label       = $TopBar/MarginContainer/HBox/LevelLabel
+@onready var score_label: Label       = $TopBar/MarginContainer/HBox/ScoreLabel
+@onready var timer_label: Label       = $TopBar/MarginContainer/HBox/TimerLabel
 
 func _ready() -> void:
 	GameState.health_changed.connect(_on_health_changed)
@@ -14,12 +16,17 @@ func _ready() -> void:
 	_refresh()
 
 func _refresh() -> void:
-	health_bar.max_value = GameState.player_max_health
-	health_bar.value = GameState.player_health
-	xp_bar.max_value = GameState.xp_to_next_level
-	xp_bar.value = GameState.player_xp
-	level_label.text = "LVL %d" % GameState.player_level
-	score_label.text = "%d" % GameState.score
+	health_bar.max_value  = GameState.player_max_health
+	health_bar.value      = GameState.player_health
+	health_text.text      = "%d / %d" % [GameState.player_health, GameState.player_max_health]
+	xp_bar.max_value      = GameState.xp_to_next_level
+	xp_bar.value          = GameState.player_xp
+	xp_text.text          = _xp_string(GameState.player_xp, GameState.xp_to_next_level)
+	level_label.text      = "LVL %d" % GameState.player_level
+	score_label.text      = "%d" % GameState.score
+
+func _xp_string(current: int, required: int) -> String:
+	return "%d / %d  (%d to go)" % [current, required, required - current]
 
 func _process(_delta: float) -> void:
 	var t := int(GameState.elapsed_time)
@@ -27,11 +34,13 @@ func _process(_delta: float) -> void:
 
 func _on_health_changed(current: int, maximum: int) -> void:
 	health_bar.max_value = maximum
-	health_bar.value = current
+	health_bar.value     = current
+	health_text.text     = "%d / %d" % [current, maximum]
 
 func _on_xp_changed(current: int, required: int) -> void:
 	xp_bar.max_value = required
-	xp_bar.value = current
+	xp_bar.value     = current
+	xp_text.text     = _xp_string(current, required)
 
 func _on_level_changed(new_level: int) -> void:
 	level_label.text = "LVL %d" % new_level
@@ -79,9 +88,7 @@ func show_game_over() -> void:
 	var t := int(GameState.elapsed_time)
 	var stats_lbl := Label.new()
 	stats_lbl.text = "Level %d  •  %d kills  •  %d:%02d survived" % [
-		GameState.player_level,
-		GameState.enemies_killed,
-		t / 60, t % 60
+		GameState.player_level, GameState.enemies_killed, t / 60, t % 60
 	]
 	stats_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	stats_lbl.add_theme_font_size_override("font_size", 17)
