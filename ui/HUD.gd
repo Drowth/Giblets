@@ -1,9 +1,9 @@
 extends Control
 
-@onready var health_bar:  ProgressBar = $TopBar/MarginContainer/HBox/HealthBar
-@onready var health_text: Label       = $TopBar/MarginContainer/HBox/HealthText
-@onready var xp_bar:      ProgressBar = $TopBar/MarginContainer/HBox/XPBar
-@onready var xp_text:     Label       = $TopBar/MarginContainer/HBox/XPText
+@onready var health_bar:  ProgressBar = $TopBar/MarginContainer/HBox/HealthBarContainer/HealthBar
+@onready var health_text: Label       = $TopBar/MarginContainer/HBox/HealthBarContainer/HealthText
+@onready var xp_bar:      ProgressBar = $TopBar/MarginContainer/HBox/XPBarContainer/XPBar
+@onready var xp_text:     Label       = $TopBar/MarginContainer/HBox/XPBarContainer/XPText
 @onready var level_label: Label       = $TopBar/MarginContainer/HBox/LevelLabel
 @onready var score_label: Label       = $TopBar/MarginContainer/HBox/ScoreLabel
 @onready var timer_label: Label       = $TopBar/MarginContainer/HBox/TimerLabel
@@ -21,12 +21,9 @@ func _refresh() -> void:
 	health_text.text      = "%d / %d" % [GameState.player_health, GameState.player_max_health]
 	xp_bar.max_value      = GameState.xp_to_next_level
 	xp_bar.value          = GameState.player_xp
-	xp_text.text          = _xp_string(GameState.player_xp, GameState.xp_to_next_level)
+	xp_text.text          = "%d / %d" % [GameState.player_xp, GameState.xp_to_next_level]
 	level_label.text      = "LVL %d" % GameState.player_level
 	score_label.text      = "%d" % GameState.score
-
-func _xp_string(current: int, required: int) -> String:
-	return "%d / %d  (%d to go)" % [current, required, required - current]
 
 func _process(_delta: float) -> void:
 	var t := int(GameState.elapsed_time)
@@ -40,7 +37,7 @@ func _on_health_changed(current: int, maximum: int) -> void:
 func _on_xp_changed(current: int, required: int) -> void:
 	xp_bar.max_value = required
 	xp_bar.value     = current
-	xp_text.text     = _xp_string(current, required)
+	xp_text.text     = "%d / %d" % [current, required]
 
 func _on_level_changed(new_level: int) -> void:
 	level_label.text = "LVL %d" % new_level
