@@ -62,10 +62,13 @@ func _load_level_up_sfx() -> void:
 func _load_upgrade_music() -> void:
 	if not upgrade_music:
 		return
-	var stream: AudioStreamWAV = load("res://assets/music/levelup.wav")
+	var stream = load("res://assets/music/levelup.wav")
 	if stream:
-		stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
 		upgrade_music.stream = stream
+		upgrade_music.finished.connect(func():
+			if upgrade_music.stream and upgrade_music.playing == false:
+				upgrade_music.play()
+		)
 
 func _setup_inputs() -> void:
 	var wasd := {"ui_left": KEY_A, "ui_right": KEY_D, "ui_up": KEY_W, "ui_down": KEY_S}

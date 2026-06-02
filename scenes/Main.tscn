@@ -30,6 +30,7 @@ position = Vector2(640, 360)
 [node name="LevelUpScreen" parent="UI" instance=ExtResource("4")]
 
 [node name="MusicPlayer" type="AudioStreamPlayer" parent="."]
+process_mode = 3
 volume_db = -8.0
 
 [node name="XPPickupSFX" type="AudioStreamPlayer" parent="."]
