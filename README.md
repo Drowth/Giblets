@@ -1,6 +1,6 @@
 # Giblets
 
-A dark gothic horror arena survival game built in **Godot 4**, inspired by Vampire Survivors. Survive endless waves of demons, collect XP, level up, choose dark gifts — and pray the boss doesn't find you first.
+A dark gothic horror arena survival game built in **Godot 4**. Survive endless waves of demons, collect XP, level up, choose dark gifts — and pray the boss doesn't find you first.
 
 ---
 
@@ -35,7 +35,7 @@ Walk over the glowing orb to detonate it:
 
 ## Upgrades
 
-Chosen at random from the pool below each time you level up. Stackable. Rarity uses WoW-style colouring (white / green / blue).
+Chosen at random from the pool below each time you level up. Stackable.
 
 ### Common
 | Name | Effect |
