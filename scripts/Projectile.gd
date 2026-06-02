@@ -28,9 +28,14 @@ func _process(delta: float) -> void:
 	if _lifetime <= 0.0:
 		queue_free()
 		return
-	var vp := get_viewport_rect()
-	if (global_position.x < -60 or global_position.x > vp.size.x + 60
-			or global_position.y < -60 or global_position.y > vp.size.y + 60):
+	var vp_size := get_viewport_rect().size
+	var cam := get_viewport().get_camera_2d()
+	var cam_center := cam.get_screen_center_position() if cam else vp_size / 2.0
+	var margin := 100.0
+	if (global_position.x < cam_center.x - vp_size.x * 0.5 - margin or
+			global_position.x > cam_center.x + vp_size.x * 0.5 + margin or
+			global_position.y < cam_center.y - vp_size.y * 0.5 - margin or
+			global_position.y > cam_center.y + vp_size.y * 0.5 + margin):
 		queue_free()
 
 func _on_body_entered(body: Node2D) -> void:

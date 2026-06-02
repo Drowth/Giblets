@@ -1,11 +1,14 @@
 extends Node
 
+const WORLD_SIZE := Vector2(3840, 2160)
+
 signal xp_changed(current_xp: int, required_xp: int)
 signal level_changed(new_level: int)
 signal health_changed(current_hp: int, max_hp: int)
 signal score_changed(new_score: int)
 signal game_over
 signal level_up_triggered
+signal sentry_summoned
 
 var score: int = 0
 var enemies_killed: int = 0
@@ -28,6 +31,7 @@ var projectile_pierce: int = 0
 var knockback_force: float = 0.0
 
 var _pending_level_ups: int = 0
+var sentry_count: int = 0
 
 func start_game() -> void:
 	_reset()
@@ -49,6 +53,7 @@ func _reset() -> void:
 	projectile_pierce = 0
 	knockback_force = 0.0
 	_pending_level_ups = 0
+	sentry_count = 0
 	score = 0
 	enemies_killed = 0
 
@@ -82,6 +87,8 @@ func has_pending_level_up() -> bool:
 	return _pending_level_ups > 0
 
 func take_damage(amount: int) -> void:
+	if not game_active:
+		return
 	player_health = max(0, player_health - amount)
 	health_changed.emit(player_health, player_max_health)
 	if player_health <= 0:

@@ -94,6 +94,12 @@ const ALL_UPGRADES: Array[Dictionary] = [
 		"color": Color(0.7, 0.1, 1.0),
 		"stat": "knockback_force", "add": 180
 	},
+	{
+		"id": "sentry_1", "name": "Osseous Sentinel", "rarity": "epic",
+		"description": "An undying skull rises at your feet, its eyes burning with arcane hunger",
+		"color": Color(0.35, 0.08, 0.50),
+		"stat": "spawn_sentry"
+	},
 ]
 
 static func get_random_choices(count: int = 3) -> Array[Dictionary]:
@@ -124,3 +130,6 @@ static func apply_upgrade(upgrade: Dictionary) -> void:
 			GameState.projectile_pierce += upgrade.get("add", 0)
 		"knockback_force":
 			GameState.knockback_force += upgrade.get("add", 0)
+		"spawn_sentry":
+			GameState.sentry_count += 1
+			GameState.sentry_summoned.emit()

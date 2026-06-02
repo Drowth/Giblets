@@ -11,6 +11,7 @@ const BLOOD_DROP      = preload("res://scripts/BloodTrailDrop.gd")
 @onready var iframes_timer: Timer           = $IFramesTimer
 @onready var sprite:        Sprite2D        = $Sprite2D
 @onready var anim_player:   AnimationPlayer = $AnimationPlayer
+@onready var camera:        Camera2D        = $Camera2D
 
 var is_invincible: bool     = false
 var _proj_container: Node2D = null
@@ -23,6 +24,8 @@ func _ready() -> void:
 	iframes_timer.timeout.connect(func(): is_invincible = false)
 	GameState.game_over.connect(_on_game_over)
 	GameState.level_changed.connect(_on_level_changed)
+	camera.limit_right  = int(GameState.WORLD_SIZE.x)
+	camera.limit_bottom = int(GameState.WORLD_SIZE.y)
 	_build_animations()
 	anim_player.play("idle")
 
@@ -69,9 +72,8 @@ func _physics_process(delta: float) -> void:
 	else:
 		velocity = velocity.move_toward(Vector2.ZERO, GameState.move_speed)
 	move_and_slide()
-	var vp := get_viewport_rect()
-	global_position.x = clampf(global_position.x, 20.0, vp.size.x - 20.0)
-	global_position.y = clampf(global_position.y, 20.0, vp.size.y - 20.0)
+	global_position.x = clampf(global_position.x, 20.0, GameState.WORLD_SIZE.x - 20.0)
+	global_position.y = clampf(global_position.y, 20.0, GameState.WORLD_SIZE.y - 20.0)
 
 	var moving := velocity.length() > 5.0
 

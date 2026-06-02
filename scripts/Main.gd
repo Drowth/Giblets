@@ -1,6 +1,7 @@
 extends Node2D
 
-const ENEMY_SCENE = preload("res://scenes/Enemy.tscn")
+const ENEMY_SCENE        = preload("res://scenes/Enemy.tscn")
+const BONE_SENTRY_SCRIPT = preload("res://scripts/BoneSentry.gd")
 
 @onready var enemies_container: Node2D = $Enemies
 @onready var projectiles_container: Node2D = $Projectiles
@@ -23,6 +24,7 @@ func _ready() -> void:
 	boss_timer.timeout.connect(_spawn_boss)
 	GameState.level_up_triggered.connect(_on_level_up)
 	GameState.game_over.connect(_on_game_over)
+	GameState.sentry_summoned.connect(_on_sentry_summoned)
 	GameState.start_game()
 	_start_music()
 	_load_xp_sfx()
@@ -80,16 +82,26 @@ func _setup_inputs() -> void:
 func _process(_delta: float) -> void:
 	spawn_timer.wait_time = maxf(0.35, 2.0 - GameState.elapsed_time * 0.012)
 
+func _get_screen_center() -> Vector2:
+	var player := get_tree().get_first_node_in_group("player")
+	var vp_half := get_viewport().get_visible_rect().size / 2.0
+	if not player:
+		return GameState.WORLD_SIZE / 2.0
+	return Vector2(
+		clampf(player.global_position.x, vp_half.x, GameState.WORLD_SIZE.x - vp_half.x),
+		clampf(player.global_position.y, vp_half.y, GameState.WORLD_SIZE.y - vp_half.y)
+	)
+
 func _spawn_wave() -> void:
-	var vp := get_viewport_rect()
+	var center := _get_screen_center()
 	var count := 1 + int(GameState.elapsed_time / 18.0)
 	for _i in count:
-		_spawn_one(vp)
+		_spawn_one(center)
 
-func _spawn_one(vp: Rect2) -> void:
+func _spawn_one(screen_center: Vector2) -> void:
 	var enemy: Node = ENEMY_SCENE.instantiate()
 	enemies_container.add_child(enemy)
-	enemy.global_position = _edge_pos(vp)
+	enemy.global_position = _edge_pos(screen_center)
 	var t := GameState.elapsed_time / 60.0
 	enemy.max_health = int(25 * (1.0 + t * 1.2))
 	enemy.health = enemy.max_health
@@ -97,12 +109,18 @@ func _spawn_one(vp: Rect2) -> void:
 	enemy.damage = int(10 * (1.0 + t * 0.5))
 	enemy.xp_value = int(20 * (1.0 + t * 0.4))
 
-func _edge_pos(vp: Rect2) -> Vector2:
+func _edge_pos(screen_center: Vector2) -> Vector2:
+	var half := get_viewport().get_visible_rect().size / 2.0
+	var margin := 35.0
+	var pos: Vector2
 	match randi() % 4:
-		0: return Vector2(randf_range(0, vp.size.x), -35.0)
-		1: return Vector2(randf_range(0, vp.size.x), vp.size.y + 35.0)
-		2: return Vector2(-35.0, randf_range(0, vp.size.y))
-		_: return Vector2(vp.size.x + 35.0, randf_range(0, vp.size.y))
+		0: pos = Vector2(randf_range(screen_center.x - half.x, screen_center.x + half.x), screen_center.y - half.y - margin)
+		1: pos = Vector2(randf_range(screen_center.x - half.x, screen_center.x + half.x), screen_center.y + half.y + margin)
+		2: pos = Vector2(screen_center.x - half.x - margin, randf_range(screen_center.y - half.y, screen_center.y + half.y))
+		_: pos = Vector2(screen_center.x + half.x + margin, randf_range(screen_center.y - half.y, screen_center.y + half.y))
+	pos.x = clampf(pos.x, 0.0, GameState.WORLD_SIZE.x)
+	pos.y = clampf(pos.y, 0.0, GameState.WORLD_SIZE.y)
+	return pos
 
 func _spawn_boss() -> void:
 	if not GameState.game_active:
@@ -116,7 +134,7 @@ func _spawn_boss() -> void:
 	boss.damage     = int(25 * (1.0 + t * 0.5))
 	boss.xp_value   = 500
 	enemies_container.add_child(boss)
-	boss.global_position = _edge_pos(get_viewport_rect())
+	boss.global_position = _edge_pos(_get_screen_center())
 
 func _show_boss_warning() -> void:
 	var canvas := CanvasLayer.new()
@@ -170,6 +188,15 @@ func _on_upgrade_chosen() -> void:
 			music_player.stream_paused = false
 			var tw := music_player.create_tween()
 			tw.tween_property(music_player, "volume_db", -8.0, 0.5)
+
+func _on_sentry_summoned() -> void:
+	var player := get_tree().get_first_node_in_group("player")
+	if not player:
+		return
+	var sentry := Node2D.new()
+	sentry.set_script(BONE_SENTRY_SCRIPT)
+	add_child(sentry)
+	sentry.global_position = player.global_position
 
 func _on_game_over() -> void:
 	spawn_timer.stop()
