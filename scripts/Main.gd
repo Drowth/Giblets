@@ -2,6 +2,7 @@ extends Node2D
 
 const ENEMY_SCENE        = preload("res://scenes/Enemy.tscn")
 const BONE_SENTRY_SCRIPT = preload("res://scripts/BoneSentry.gd")
+const BLOOD_SMEARS_SCRIPT = preload("res://scripts/BloodSmears.gd")
 
 @onready var enemies_container: Node2D = $Enemies
 @onready var projectiles_container: Node2D = $Projectiles
@@ -33,6 +34,29 @@ func _ready() -> void:
 	if level_up_screen:
 		level_up_screen.connect("upgrade_chosen", _on_upgrade_chosen)
 		level_up_screen.hide()
+	_setup_blood_smears()
+	_setup_crt()
+
+func _setup_blood_smears() -> void:
+	var node := BLOOD_SMEARS_SCRIPT.new()
+	add_child(node)
+
+func _setup_crt() -> void:
+	$UI.layer = 200  # render UI above the CRT post-process layer
+	var crt_layer := CanvasLayer.new()
+	crt_layer.layer = 128
+	crt_layer.process_mode = Node.PROCESS_MODE_ALWAYS
+	var rect := ColorRect.new()
+	rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	rect.process_mode = Node.PROCESS_MODE_ALWAYS
+	var shader = load("res://shaders/crt_effect.gdshader")
+	if shader:
+		var mat := ShaderMaterial.new()
+		mat.shader = shader
+		rect.material = mat
+	crt_layer.add_child(rect)
+	add_child(crt_layer)
 
 func _start_music() -> void:
 	if not music_player:

@@ -18,6 +18,7 @@ var _dead:           bool    = false
 var _xp_container:   Node    = null
 var _knockback_vel:  Vector2 = Vector2.ZERO
 var _effective_scale: Vector2
+var _last_dir:       Vector2 = Vector2.DOWN
 
 @onready var sprite:      Sprite2D        = $Sprite2D
 @onready var anim_player: AnimationPlayer = $AnimationPlayer
@@ -30,7 +31,9 @@ func _ready() -> void:
 	_effective_scale = BASE_SCALE * (3.0 if is_boss else 1.0)
 	sprite.scale = _effective_scale
 	if is_boss:
-		sprite.modulate = Color(1.4, 0.45, 0.1)
+		var boss_tex = load("res://assets/enemies/boss1.png")
+		if boss_tex:
+			sprite.texture = boss_tex
 		var boss_shape := CircleShape2D.new()
 		boss_shape.radius = 32.0
 		$CollisionShape2D.shape = boss_shape
@@ -89,7 +92,7 @@ func _anim_hurt() -> Animation:
 	var tm := a.add_track(Animation.TYPE_VALUE)
 	a.track_set_path(tm, "Sprite2D:modulate")
 	a.value_track_set_update_mode(tm, Animation.UPDATE_CONTINUOUS)
-	var base_mod := Color(1.4, 0.45, 0.1) if is_boss else Color.WHITE
+	var base_mod := Color.WHITE
 	a.track_insert_key(tm, 0.00, base_mod)
 	a.track_insert_key(tm, 0.03, Color(4.0, 4.0, 4.0, 1.0))
 	a.track_insert_key(tm, 0.15, base_mod)
@@ -136,6 +139,8 @@ func _physics_process(delta: float) -> void:
 			_player.take_damage(damage)
 
 	var moving := velocity.length() > 5.0
+	if moving:
+		_last_dir = velocity.normalized()
 	var cur := anim_player.current_animation
 	if moving and cur not in ["hurt", "death", "walk"]:
 		anim_player.play("walk")
@@ -190,7 +195,7 @@ func fire_kill() -> void:
 		return
 	_dead = true
 	set_physics_process(false)
-	$CollisionShape2D.disabled = true
+	$CollisionShape2D.set_deferred("disabled", true)
 	remove_from_group("enemies")
 	GameState.add_kill_score(xp_value)
 	_spawn_blood()
@@ -200,7 +205,7 @@ func _die() -> void:
 	_dead = true
 	queue_redraw()
 	set_physics_process(false)
-	$CollisionShape2D.disabled = true
+	$CollisionShape2D.set_deferred("disabled", true)
 	remove_from_group("enemies")
 	GameState.add_kill_score(xp_value)
 	sprite.position = Vector2.ZERO
@@ -218,6 +223,9 @@ func _spawn_blood() -> void:
 	var splat = BLOOD_SCENE.instantiate()
 	get_parent().add_child(splat)
 	splat.global_position = global_position
+	var smears := get_tree().get_first_node_in_group("blood_smears")
+	if smears:
+		smears.add_smear(global_position, _last_dir, 2.5 if is_boss else 1.0)
 
 func _drop_xp() -> void:
 	if not _xp_container or not is_instance_valid(_xp_container):
