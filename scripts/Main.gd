@@ -11,6 +11,7 @@ const ENEMY_SCENE = preload("res://scenes/Enemy.tscn")
 @onready var music_player:    AudioStreamPlayer = $MusicPlayer
 @onready var xp_pickup_sfx:   AudioStreamPlayer = $XPPickupSFX
 @onready var level_up_sfx:    AudioStreamPlayer = $LevelUpSFX
+@onready var upgrade_music:   AudioStreamPlayer = $UpgradeMusic
 @onready var boss_timer:      Timer             = $BossTimer
 
 func _ready() -> void:
@@ -26,6 +27,7 @@ func _ready() -> void:
 	_start_music()
 	_load_xp_sfx()
 	_load_level_up_sfx()
+	_load_upgrade_music()
 	if level_up_screen:
 		level_up_screen.connect("upgrade_chosen", _on_upgrade_chosen)
 		level_up_screen.hide()
@@ -56,6 +58,14 @@ func _load_level_up_sfx() -> void:
 	var stream = load("res://assets/sfx/levelup.wav")
 	if stream:
 		level_up_sfx.stream = stream
+
+func _load_upgrade_music() -> void:
+	if not upgrade_music:
+		return
+	var stream: AudioStreamWAV = load("res://assets/music/levelup.wav")
+	if stream:
+		stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
+		upgrade_music.stream = stream
 
 func _setup_inputs() -> void:
 	var wasd := {"ui_left": KEY_A, "ui_right": KEY_D, "ui_up": KEY_W, "ui_down": KEY_S}
@@ -126,6 +136,13 @@ func _show_boss_warning() -> void:
 func _on_level_up() -> void:
 	if level_up_sfx and level_up_sfx.stream:
 		level_up_sfx.play()
+	if upgrade_music and upgrade_music.stream and not upgrade_music.playing:
+		upgrade_music.volume_db = -6.0
+		upgrade_music.play()
+	if music_player and music_player.playing:
+		var tw := music_player.create_tween()
+		tw.tween_property(music_player, "volume_db", -60.0, 0.3)
+		tw.tween_callback(func(): music_player.stream_paused = true)
 	if not level_up_screen or not is_instance_valid(level_up_screen):
 		level_up_screen = get_tree().get_first_node_in_group("level_up_screen")
 	if not level_up_screen:
@@ -142,10 +159,20 @@ func _on_upgrade_chosen() -> void:
 	else:
 		level_up_screen.hide()
 		get_tree().paused = false
+		if upgrade_music and upgrade_music.playing:
+			var tw := upgrade_music.create_tween()
+			tw.tween_property(upgrade_music, "volume_db", -60.0, 0.4)
+			tw.tween_callback(upgrade_music.stop)
+		if music_player and music_player.stream_paused:
+			music_player.stream_paused = false
+			var tw := music_player.create_tween()
+			tw.tween_property(music_player, "volume_db", -8.0, 0.5)
 
 func _on_game_over() -> void:
 	spawn_timer.stop()
 	boss_timer.stop()
+	if upgrade_music and upgrade_music.playing:
+		upgrade_music.stop()
 	if music_player:
 		var tween := create_tween()
 		tween.tween_property(music_player, "volume_db", -60.0, 2.0)

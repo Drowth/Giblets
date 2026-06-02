@@ -39,6 +39,10 @@ max_polyphony = 4
 [node name="LevelUpSFX" type="AudioStreamPlayer" parent="."]
 volume_db = -4.0
 
+[node name="UpgradeMusic" type="AudioStreamPlayer" parent="."]
+process_mode = 3
+volume_db = -6.0
+
 [node name="SpawnTimer" type="Timer" parent="."]
 wait_time = 2.0
 autostart = true
