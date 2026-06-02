@@ -2,10 +2,16 @@ extends CharacterBody2D
 
 const PROJECTILE_SCENE = preload("res://scenes/Projectile.tscn")
 
-@onready var attack_timer: Timer = $AttackTimer
-@onready var iframes_timer: Timer = $IFramesTimer
+const TEX_LVL1 = preload("res://assets/player/player.png")
+const TEX_LVL2 = preload("res://assets/player/player2.png")
+const TEX_LVL3 = preload("res://assets/player/player3.png")
 
-var is_invincible: bool = false
+@onready var attack_timer:  Timer           = $AttackTimer
+@onready var iframes_timer: Timer           = $IFramesTimer
+@onready var sprite:        Sprite2D        = $Sprite2D
+@onready var anim_player:   AnimationPlayer = $AnimationPlayer
+
+var is_invincible: bool   = false
 var _proj_container: Node2D = null
 
 func _ready() -> void:
@@ -14,16 +20,40 @@ func _ready() -> void:
 	attack_timer.timeout.connect(_fire)
 	iframes_timer.timeout.connect(func(): is_invincible = false)
 	GameState.game_over.connect(_on_game_over)
-	queue_redraw()
+	GameState.level_changed.connect(_on_level_changed)
+	_build_animations()
+	anim_player.play("idle")
 
-func _draw() -> void:
-	draw_circle(Vector2.ZERO, 16, Color(0.2, 0.3, 0.55))
-	draw_circle(Vector2.ZERO, 12, Color(0.3, 0.45, 0.75))
-	draw_arc(Vector2.ZERO, 16, 0, TAU, 32, Color(0.5, 0.7, 1.0), 2.0)
-	draw_circle(Vector2(-5, -3), 4, Color(0.9, 0.1, 0.1))
-	draw_circle(Vector2(5, -3), 4, Color(0.9, 0.1, 0.1))
-	draw_circle(Vector2(-5, -3), 2, Color(0.1, 0.0, 0.0))
-	draw_circle(Vector2(5, -3), 2, Color(0.1, 0.0, 0.0))
+func _build_animations() -> void:
+	var lib := AnimationLibrary.new()
+
+	# Idle: gentle 2px bob, 1.0s
+	var idle := Animation.new()
+	idle.length = 1.0
+	idle.loop_mode = Animation.LOOP_LINEAR
+	var t := idle.add_track(Animation.TYPE_VALUE)
+	idle.track_set_path(t, "Sprite2D:position")
+	idle.value_track_set_update_mode(t, Animation.UPDATE_CONTINUOUS)
+	idle.track_insert_key(t, 0.0, Vector2(0,  0))
+	idle.track_insert_key(t, 0.5, Vector2(0,  2))
+	idle.track_insert_key(t, 1.0, Vector2(0,  0))
+	lib.add_animation("idle", idle)
+
+	# Walk: snappier 3px bob, 0.35s
+	var walk := Animation.new()
+	walk.length = 0.35
+	walk.loop_mode = Animation.LOOP_LINEAR
+	t = walk.add_track(Animation.TYPE_VALUE)
+	walk.track_set_path(t, "Sprite2D:position")
+	walk.value_track_set_update_mode(t, Animation.UPDATE_CONTINUOUS)
+	walk.track_insert_key(t, 0.000, Vector2(0,  0))
+	walk.track_insert_key(t, 0.088, Vector2(0, -3))
+	walk.track_insert_key(t, 0.175, Vector2(0,  0))
+	walk.track_insert_key(t, 0.263, Vector2(0, -3))
+	walk.track_insert_key(t, 0.350, Vector2(0,  0))
+	lib.add_animation("walk", walk)
+
+	anim_player.add_animation_library("", lib)
 
 func _physics_process(_delta: float) -> void:
 	var dir := Vector2(
@@ -32,12 +62,21 @@ func _physics_process(_delta: float) -> void:
 	)
 	if dir != Vector2.ZERO:
 		velocity = dir.normalized() * GameState.move_speed
+		if dir.x != 0.0:
+			sprite.flip_h = dir.x < 0.0
 	else:
 		velocity = velocity.move_toward(Vector2.ZERO, GameState.move_speed)
 	move_and_slide()
 	var vp := get_viewport_rect()
 	global_position.x = clampf(global_position.x, 20.0, vp.size.x - 20.0)
 	global_position.y = clampf(global_position.y, 20.0, vp.size.y - 20.0)
+
+	var moving := velocity.length() > 5.0
+	var cur    := anim_player.current_animation
+	if moving and cur != "walk":
+		anim_player.play("walk")
+	elif not moving and cur != "idle":
+		anim_player.play("idle")
 
 func _fire() -> void:
 	attack_timer.wait_time = 1.0 / GameState.fire_rate
@@ -65,7 +104,7 @@ func _fire() -> void:
 		proj.global_position = global_position
 		var angle_offset := 0.0
 		if count > 1:
-			angle_offset = lerp(-0.3, 0.3, float(i) / float(count - 1))
+			angle_offset = lerp(-0.1, 0.1, float(i) / float(count - 1))
 		proj.launch(
 			base_dir.rotated(angle_offset),
 			GameState.projectile_damage,
@@ -87,6 +126,12 @@ func _flash_damage() -> void:
 		await get_tree().create_timer(0.07).timeout
 		modulate = Color.WHITE
 		await get_tree().create_timer(0.07).timeout
+
+func _on_level_changed(new_level: int) -> void:
+	if new_level >= 4:
+		sprite.texture = TEX_LVL3
+	elif new_level >= 2:
+		sprite.texture = TEX_LVL2
 
 func _on_game_over() -> void:
 	set_physics_process(false)

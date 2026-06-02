@@ -59,7 +59,6 @@ func _spawn_one(vp: Rect2) -> void:
 	enemy.move_speed = 55.0 + t * 35.0
 	enemy.damage = int(10 * (1.0 + t * 0.5))
 	enemy.xp_value = int(20 * (1.0 + t * 0.4))
-	enemy.queue_redraw()
 
 func _edge_pos(vp: Rect2) -> Vector2:
 	match randi() % 4:
