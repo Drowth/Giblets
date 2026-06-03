@@ -1,6 +1,7 @@
 extends Node2D
 
 const ENEMY_SCENE        = preload("res://scenes/Enemy.tscn")
+const WRAITH_SCENE       = preload("res://scenes/Wraith.tscn")
 const BONE_SENTRY_SCRIPT = preload("res://scripts/BoneSentry.gd")
 const BLOOD_SMEARS_SCRIPT = preload("res://scripts/BloodSmears.gd")
 
@@ -123,15 +124,32 @@ func _spawn_wave() -> void:
 		_spawn_one(center)
 
 func _spawn_one(screen_center: Vector2) -> void:
+	var t := GameState.elapsed_time / 60.0
+	var wraith_chance := clampf((GameState.elapsed_time - 30.0) / 60.0, 0.0, 0.5)
+	if randf() < wraith_chance:
+		_spawn_wraith(screen_center, t)
+	else:
+		_spawn_demon(screen_center, t)
+
+func _spawn_demon(screen_center: Vector2, t: float) -> void:
 	var enemy: Node = ENEMY_SCENE.instantiate()
 	enemies_container.add_child(enemy)
 	enemy.global_position = _edge_pos(screen_center)
-	var t := GameState.elapsed_time / 60.0
 	enemy.max_health = int(25 * (1.0 + t * 1.2))
 	enemy.health = enemy.max_health
 	enemy.move_speed = 55.0 + t * 35.0
 	enemy.damage = int(10 * (1.0 + t * 0.5))
 	enemy.xp_value = int(20 * (1.0 + t * 0.4))
+
+func _spawn_wraith(screen_center: Vector2, t: float) -> void:
+	var wraith: Node = WRAITH_SCENE.instantiate()
+	enemies_container.add_child(wraith)
+	wraith.global_position = _edge_pos(screen_center)
+	wraith.max_health = int(15 * (1.0 + t * 1.0))
+	wraith.health = wraith.max_health
+	wraith.move_speed = 80.0 + t * 30.0
+	wraith.damage = int(8 * (1.0 + t * 0.5))
+	wraith.xp_value = int(25 * (1.0 + t * 0.4))
 
 func _edge_pos(screen_center: Vector2) -> Vector2:
 	var half := get_viewport().get_visible_rect().size / 2.0

@@ -215,6 +215,7 @@ func _die() -> void:
 	_drop_xp()
 	if is_boss:
 		_spawn_bomb()
+		_vacuum_xp_orbs()
 	await get_tree().create_timer(0.45).timeout
 	queue_free()
 
@@ -273,6 +274,14 @@ func _merge_smallest(orbs: Array) -> void:
 		nearest.xp_value += target.xp_value
 		nearest.queue_redraw()
 	target.queue_free()
+
+func _vacuum_xp_orbs() -> void:
+	var container := get_tree().get_first_node_in_group("xp_orbs_container")
+	if not container:
+		return
+	for orb in container.get_children():
+		orb._attracted = true
+		orb._attract_speed = 80.0
 
 func _spawn_bomb() -> void:
 	var bomb = BOMB_SCENE.instantiate()
