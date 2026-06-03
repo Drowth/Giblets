@@ -9,7 +9,6 @@ func _draw() -> void:
 	rng.seed = 0xDEADBEEF
 	_draw_tiles(rng)
 	_draw_cracks(rng)
-	_draw_blood_pools(rng)
 	_draw_bones(rng)
 	_draw_skulls(rng)
 	_draw_world_border()
@@ -46,17 +45,6 @@ func _draw_cracks(rng: RandomNumberGenerator) -> void:
 				var ba := angle + rng.randf_range(-0.8, 0.8)
 				var bl := rng.randf_range(8.0, 24.0)
 				draw_line(cur, cur + Vector2(cos(ba) * bl, sin(ba) * bl), crack_color, 1.0)
-
-func _draw_blood_pools(rng: RandomNumberGenerator) -> void:
-	for _i in 80:
-		var pos := Vector2(rng.randf() * GameState.WORLD_SIZE.x, rng.randf() * GameState.WORLD_SIZE.y)
-		var r := rng.randf_range(10.0, 30.0)
-		var d := rng.randf_range(0.28, 0.46)
-		# Outer pool — dried, almost black
-		draw_circle(pos, r, Color(d * 0.70, 0.0, 0.0, 0.55))
-		# Inner slick — slightly fresher
-		var inner_offset := Vector2(rng.randf_range(-5.0, 5.0), rng.randf_range(-5.0, 5.0))
-		draw_circle(pos + inner_offset, r * 0.50, Color(d * 0.45, 0.0, 0.0, 0.40))
 
 func _draw_bones(rng: RandomNumberGenerator) -> void:
 	for _i in 60:

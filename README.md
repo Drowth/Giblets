@@ -1,6 +1,6 @@
 # Giblets
 
-A dark gothic horror arena survival game built in **Godot 4**. Survive endless waves of demons, collect XP, level up, choose dark gifts — and pray the boss doesn't find you first.
+A dark gothic horror arena survival game built in **Godot 4**. Survive endless waves of demons and wraiths, collect XP, level up, choose dark gifts — and pray the boss doesn't find you first.
 
 ---
 
@@ -12,6 +12,7 @@ A dark gothic horror arena survival game built in **Godot 4**. Survive endless w
 - **Fill the XP bar** to level up and choose 1 of 3 random upgrades
 - **Score** = enemy XP value × your current level per kill
 - Enemies get faster and tankier the longer you survive
+- **Wraiths** appear after 30 seconds — faster than demons, they drift side to side and lunge
 - A **boss** spawns every 60 seconds — slower but far more durable
 
 ---
@@ -21,7 +22,7 @@ A dark gothic horror arena survival game built in **Godot 4**. Survive endless w
 Every minute a boss erupts from the edge of the screen:
 
 - 3× the size of a regular enemy, orange-tinted, with its own health bar
-- On death drops **6 XP orbs** worth two full levels
+- On death drops XP orbs worth two full levels — and **vacuums all XP on screen** to the player
 - Also drops a **Fire Bomb** pickup
 
 ### Fire Bomb
@@ -77,15 +78,16 @@ Chosen at random from the pool below each time you level up. Stackable.
 ## Project Structure
 
 ```
-scenes/       — Game scenes (Main, Player, Enemy, Projectile, XPOrb, BombPickup, BloodSplatter)
-scripts/      — GDScript logic (GameState autoload, spawning, combat, upgrades, boss, bomb)
-ui/           — HUD, level-up upgrade screen
+scenes/       — Game scenes (Main, Player, Enemy, Wraith, Projectile, XPOrb, BombPickup, BloodSplatter)
+scripts/      — GDScript logic (GameState + HighScores autoloads, spawning, combat, upgrades, boss, bomb)
+ui/           — HUD, level-up upgrade screen, upgrade cards
 assets/
   music/      — Background track + upgrade screen music
   sfx/        — XP pickup, level-up sting
-  enemies/    — Demon sprite
+  enemies/    — Demon + wraith sprites
   player/     — Player sprites (levels 1–3)
-  pickups/    — Giblet XP orb sprite
+  pickups/    — Giblet XP orb + sentinel sprites
+shaders/      — CRT post-process (vignette, scanlines, chromatic aberration, grain)
 ```
 
 ---

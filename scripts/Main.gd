@@ -1,9 +1,16 @@
 extends Node2D
 
-const ENEMY_SCENE        = preload("res://scenes/Enemy.tscn")
-const WRAITH_SCENE       = preload("res://scenes/Wraith.tscn")
-const BONE_SENTRY_SCRIPT = preload("res://scripts/BoneSentry.gd")
+const ENEMY_SCENE         = preload("res://scenes/Enemy.tscn")
+const WRAITH_SCENE        = preload("res://scenes/Wraith.tscn")
+const BONE_SENTRY_SCRIPT  = preload("res://scripts/BoneSentry.gd")
 const BLOOD_SMEARS_SCRIPT = preload("res://scripts/BloodSmears.gd")
+const OPTIONS_SCRIPT      = preload("res://ui/OptionsScreen.gd")
+
+var _crt_rect:            ColorRect   = null
+var _enemies_canvas:      CanvasLayer = null
+var _options_screen:      CanvasLayer = null
+var _crt_enabled:         bool        = true
+var _crt_affects_enemies: bool        = true
 
 @onready var enemies_container: Node2D = $Enemies
 @onready var projectiles_container: Node2D = $Projectiles
@@ -37,27 +44,72 @@ func _ready() -> void:
 		level_up_screen.hide()
 	_setup_blood_smears()
 	_setup_crt()
+	_setup_enemies_canvas()
+	_setup_options_screen()
 
 func _setup_blood_smears() -> void:
 	var node := BLOOD_SMEARS_SCRIPT.new()
 	add_child(node)
 
 func _setup_crt() -> void:
-	$UI.layer = 200  # render UI above the CRT post-process layer
+	$UI.layer = 200
 	var crt_layer := CanvasLayer.new()
-	crt_layer.layer = 128
+	crt_layer.layer        = 128
 	crt_layer.process_mode = Node.PROCESS_MODE_ALWAYS
-	var rect := ColorRect.new()
-	rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	rect.process_mode = Node.PROCESS_MODE_ALWAYS
+	_crt_rect = ColorRect.new()
+	_crt_rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_crt_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_crt_rect.process_mode = Node.PROCESS_MODE_ALWAYS
 	var shader = load("res://shaders/crt_effect.gdshader")
 	if shader:
 		var mat := ShaderMaterial.new()
 		mat.shader = shader
-		rect.material = mat
-	crt_layer.add_child(rect)
+		_crt_rect.material = mat
+	crt_layer.add_child(_crt_rect)
 	add_child(crt_layer)
+
+func _setup_enemies_canvas() -> void:
+	_enemies_canvas                      = CanvasLayer.new()
+	_enemies_canvas.follow_viewport_enabled = true
+	_enemies_canvas.layer                = 50  # below CRT (128) by default
+	add_child(_enemies_canvas)
+	enemies_container.reparent(_enemies_canvas)
+
+func _setup_options_screen() -> void:
+	_options_screen = CanvasLayer.new()
+	_options_screen.set_script(OPTIONS_SCRIPT)
+	add_child(_options_screen)
+	_options_screen.open_requested.connect(func():
+		if GameState.game_active:
+			_open_options()
+	)
+	_options_screen.crt_changed.connect(_on_crt_changed)
+	_options_screen.crt_enemies_changed.connect(_on_crt_enemies_changed)
+	_options_screen.resumed.connect(_close_options)
+
+func _open_options() -> void:
+	get_tree().paused = true
+	_options_screen.open(_crt_enabled, _crt_affects_enemies)
+
+func _close_options() -> void:
+	_options_screen.hide()
+	if not GameState.has_pending_level_up():
+		get_tree().paused = false
+
+func _on_crt_changed(enabled: bool) -> void:
+	_crt_enabled = enabled
+	_apply_crt_settings()
+
+func _on_crt_enemies_changed(enabled: bool) -> void:
+	_crt_affects_enemies = enabled
+	_apply_crt_settings()
+
+func _apply_crt_settings() -> void:
+	if _crt_rect:
+		_crt_rect.visible = _crt_enabled
+	if _enemies_canvas:
+		var above := not _crt_enabled or not _crt_affects_enemies
+		_enemies_canvas.layer = 150 if above else 50
 
 func _start_music() -> void:
 	if not music_player:

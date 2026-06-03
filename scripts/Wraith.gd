@@ -183,7 +183,7 @@ func _spawn_blood() -> void:
 	var smears := get_tree().get_first_node_in_group("blood_smears")
 	if smears:
 		var dir := velocity.normalized() if velocity.length() > 1.0 else Vector2.DOWN
-		smears.add_smear(global_position, dir, 1.0)
+		smears.add_smear(global_position, dir, 1.0, Color(0.0, 1.0, 0.0))
 
 func _drop_xp() -> void:
 	if not _xp_container or not is_instance_valid(_xp_container):

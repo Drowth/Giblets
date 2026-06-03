@@ -12,7 +12,7 @@ func _ready() -> void:
 # Call from Enemy on death.
 # dir  — normalised movement direction of the enemy (used for smear trail axis)
 # scale_mul — 1.0 for regulars, ~2.5 for bosses
-func add_smear(pos: Vector2, dir: Vector2 = Vector2.RIGHT, scale_mul: float = 1.0) -> void:
+func add_smear(pos: Vector2, dir: Vector2 = Vector2.RIGHT, scale_mul: float = 1.0, tint: Color = Color(1.0, 0.0, 0.0)) -> void:
 	if _smears.size() >= MAX_SMEARS:
 		_smears.pop_front()
 
@@ -22,12 +22,12 @@ func add_smear(pos: Vector2, dir: Vector2 = Vector2.RIGHT, scale_mul: float = 1.
 	var d := dir.normalized() if dir.length_squared() > 0.01 \
 		else Vector2(rng.randf_range(-1.0, 1.0), rng.randf_range(-1.0, 1.0)).normalized()
 
-	var main_r  := rng.randf_range(10.0, 17.0) * scale_mul
-	var length  := rng.randf_range(20.0, 44.0) * scale_mul
-	var redness := rng.randf_range(0.12, 0.22)
-	var alpha   := rng.randf_range(0.60, 0.80)
-	var col     := Color(redness,         0.0, 0.0, alpha)
-	var icol    := Color(redness * 0.50,  0.0, 0.0, alpha * 0.72)
+	var main_r    := rng.randf_range(10.0, 17.0) * scale_mul
+	var length    := rng.randf_range(20.0, 44.0) * scale_mul
+	var intensity := rng.randf_range(0.12, 0.22)
+	var alpha     := rng.randf_range(0.60, 0.80)
+	var col       := Color(tint.r * intensity,        tint.g * intensity,        tint.b * intensity,        alpha)
+	var icol      := Color(tint.r * intensity * 0.50, tint.g * intensity * 0.50, tint.b * intensity * 0.50, alpha * 0.72)
 
 	# Satellite splatter drops
 	var dots: Array = []
@@ -37,7 +37,7 @@ func add_smear(pos: Vector2, dir: Vector2 = Vector2.RIGHT, scale_mul: float = 1.
 		dots.append({
 			"ofs": Vector2(cos(da) * spread, sin(da) * spread),
 			"r":   rng.randf_range(2.0, 7.0) * scale_mul,
-			"col": Color(redness * 0.7, 0.0, 0.0, rng.randf_range(0.28, 0.52))
+			"col": Color(tint.r * intensity * 0.7, tint.g * intensity * 0.7, tint.b * intensity * 0.7, rng.randf_range(0.28, 0.52))
 		})
 
 	_smears.append({
