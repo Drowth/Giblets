@@ -89,11 +89,22 @@ func _make_card(upgrade: Dictionary) -> Button:
 	vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	btn.add_child(vbox)
 
-	var icon := ColorRect.new()
-	icon.custom_minimum_size = Vector2(0, 105)
-	icon.color = upgrade.get("color", Color.GRAY)
-	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	vbox.add_child(icon)
+	var icon_path: String = upgrade.get("icon_path", "")
+	if icon_path != "" and ResourceLoader.exists(icon_path):
+		var icon := TextureRect.new()
+		icon.custom_minimum_size = Vector2(0, 105)
+		icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon.texture = load(icon_path)
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		vbox.add_child(icon)
+	else:
+		var icon := ColorRect.new()
+		icon.custom_minimum_size = Vector2(0, 105)
+		icon.color = upgrade.get("color", Color.GRAY)
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		vbox.add_child(icon)
 
 	var name_lbl := Label.new()
 	name_lbl.text = upgrade.get("name", "???")

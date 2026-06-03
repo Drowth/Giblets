@@ -227,28 +227,52 @@ func _spawn_blood() -> void:
 	if smears:
 		smears.add_smear(global_position, _last_dir, 2.5 if is_boss else 1.0)
 
+const MAX_XP_ORBS := 75
+
 func _drop_xp() -> void:
 	if not _xp_container or not is_instance_valid(_xp_container):
 		_xp_container = get_tree().get_first_node_in_group("xp_orbs_container")
 	if not _xp_container:
 		return
 	if is_boss:
-		# Drop 6 orbs totalling 2 full levels of XP
-		var total_xp := GameState.xp_to_next_level * 2
-		var orb_xp   := total_xp / 6
-		for i in 6:
+		var orb_xp := GameState.xp_to_next_level * 2 / 3
+		for _i in 3:
 			var orb = XP_ORB_SCENE.instantiate()
 			_xp_container.add_child(orb)
 			orb.global_position = global_position + Vector2(randf_range(-50, 50), randf_range(-50, 50))
 			orb.xp_value = orb_xp
 	else:
-		var orb_count := clampi(xp_value / 20, 1, 3)
-		var orb_xp    := xp_value / orb_count
-		for i in orb_count:
-			var orb = XP_ORB_SCENE.instantiate()
-			_xp_container.add_child(orb)
-			orb.global_position = global_position + Vector2(randf_range(-18, 18), randf_range(-18, 18))
-			orb.xp_value = orb_xp
+		var orb = XP_ORB_SCENE.instantiate()
+		_xp_container.add_child(orb)
+		orb.global_position = global_position + Vector2(randf_range(-18, 18), randf_range(-18, 18))
+		orb.xp_value = xp_value
+	# Enforce cap — merge smallest orb into its nearest neighbour
+	var orbs := _xp_container.get_children()
+	if orbs.size() > MAX_XP_ORBS:
+		_merge_smallest(orbs)
+
+func _merge_smallest(orbs: Array) -> void:
+	var target: Node2D = null
+	var min_val := 999999
+	for orb in orbs:
+		if orb.xp_value < min_val:
+			min_val = orb.xp_value
+			target = orb
+	if not target:
+		return
+	var nearest: Node2D = null
+	var nearest_dist := INF
+	for orb in orbs:
+		if orb == target:
+			continue
+		var d := target.global_position.distance_to((orb as Node2D).global_position)
+		if d < nearest_dist:
+			nearest_dist = d
+			nearest = orb
+	if nearest:
+		nearest.xp_value += target.xp_value
+		nearest.queue_redraw()
+	target.queue_free()
 
 func _spawn_bomb() -> void:
 	var bomb = BOMB_SCENE.instantiate()

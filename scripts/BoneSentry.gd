@@ -2,15 +2,38 @@ extends Node2D
 
 const PROJECTILE_SCENE = preload("res://scenes/Projectile.tscn")
 
+const ORBIT_RADIUS := 90.0
+const ORBIT_SPEED  := 1.1
+
 var _fire_timer: float = 0.0
 var _bob_time: float = 0.0
+var _orbit_angle: float = 0.0
+var _player: Node2D = null
 var _proj_container: Node2D = null
+var _sprite: Sprite2D = null
+
+func _ready() -> void:
+	_player = get_tree().get_first_node_in_group("player")
+	# Spread multiple sentries evenly: sentry_count is already incremented before spawn
+	_orbit_angle = (GameState.sentry_count - 1) * (TAU / 3.0)
+	_sprite = Sprite2D.new()
+	_sprite.texture = load("res://assets/pickups/sentinel.png")
+	var s := 48.0 / _sprite.texture.get_size().y
+	_sprite.scale = Vector2(s, s)
+	add_child(_sprite)
 
 func _process(delta: float) -> void:
 	if not GameState.game_active:
 		return
-	_bob_time += delta
-	queue_redraw()
+	if not _player or not is_instance_valid(_player):
+		_player = get_tree().get_first_node_in_group("player")
+		return
+	_bob_time    += delta
+	_orbit_angle += ORBIT_SPEED * delta
+	global_position = _player.global_position + Vector2(
+		cos(_orbit_angle) * ORBIT_RADIUS,
+		sin(_orbit_angle) * ORBIT_RADIUS + sin(_bob_time * 3.0) * 4.0
+	)
 	_fire_timer -= delta
 	if _fire_timer <= 0.0:
 		_fire_timer = 1.0 / GameState.fire_rate
@@ -34,7 +57,7 @@ func _try_fire() -> void:
 	if not _proj_container:
 		return
 	var dir := (nearest.global_position - global_position).normalized()
-	scale.x = -1.0 if dir.x < 0 else 1.0
+	_sprite.flip_h = dir.x < 0.0
 	var count := GameState.projectile_count
 	for i in count:
 		var angle_offset := 0.0
@@ -44,36 +67,3 @@ func _try_fire() -> void:
 		_proj_container.add_child(proj)
 		proj.global_position = global_position
 		proj.launch(dir.rotated(angle_offset), GameState.projectile_damage, GameState.projectile_speed, GameState.projectile_pierce)
-
-func _draw() -> void:
-	var by := sin(_bob_time * 2.5) * 2.5
-
-	# Soft purple aura
-	draw_circle(Vector2(0, by), 22.0, Color(0.40, 0.05, 0.60, 0.18))
-
-	# Skull
-	draw_circle(Vector2(0, by), 16.0, Color(0.86, 0.81, 0.72))
-
-	# Eye sockets
-	draw_circle(Vector2(-6, by - 2), 5.0, Color(0.04, 0.0, 0.06))
-	draw_circle(Vector2(6, by - 2), 5.0, Color(0.04, 0.0, 0.06))
-
-	# Purple glowing eyes — pulse with bob_time
-	var pulse := 0.6 + sin(_bob_time * 4.0) * 0.4
-	draw_circle(Vector2(-6, by - 2), 3.5, Color(0.639, 0.208, 0.933, pulse))
-	draw_circle(Vector2(6, by - 2), 3.5, Color(0.639, 0.208, 0.933, pulse))
-	draw_circle(Vector2(-6, by - 2), 1.5, Color(0.95, 0.80, 1.0))
-	draw_circle(Vector2(6, by - 2), 1.5, Color(0.95, 0.80, 1.0))
-
-	# Nose cavity
-	draw_circle(Vector2(0, by + 3), 2.5, Color(0.28, 0.24, 0.20))
-
-	# Teeth — 5 stubs along jaw line
-	for i in 5:
-		draw_rect(Rect2(-9.5 + i * 4.0, by + 8.5, 3.0, 5.0), Color(0.95, 0.92, 0.88))
-
-	# Hanging chain below skull
-	for i in 4:
-		var cy := by + 22.0 + i * 6.0
-		draw_circle(Vector2(0, cy), 2.0, Color(0.50, 0.47, 0.40))
-		draw_circle(Vector2(0, cy), 1.0, Color(0.70, 0.67, 0.58))

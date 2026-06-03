@@ -98,6 +98,7 @@ const ALL_UPGRADES: Array[Dictionary] = [
 		"id": "sentry_1", "name": "Osseous Sentinel", "rarity": "epic",
 		"description": "An undying skull rises at your feet, its eyes burning with arcane hunger",
 		"color": Color(0.35, 0.08, 0.50),
+		"icon_path": "res://assets/pickups/sentinel.png",
 		"stat": "spawn_sentry"
 	},
 ]
