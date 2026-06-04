@@ -26,6 +26,7 @@ func _ready() -> void:
 	GameState.level_changed.connect(_on_level_changed)
 	camera.limit_right  = int(GameState.WORLD_SIZE.x)
 	camera.limit_bottom = int(GameState.WORLD_SIZE.y)
+	camera.zoom = Vector2(0.3, 0.3)
 	_build_animations()
 	anim_player.play("idle")
 

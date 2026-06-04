@@ -204,8 +204,14 @@ func _spawn_wraith(screen_center: Vector2, t: float) -> void:
 	wraith.xp_value = int(25 * (1.0 + t * 0.4))
 
 func _edge_pos(screen_center: Vector2) -> Vector2:
-	var half := get_viewport().get_visible_rect().size / 2.0
-	var margin := 35.0
+	var zoom := 1.0
+	var player := get_tree().get_first_node_in_group("player")
+	if player:
+		var cam := player.get_node_or_null("Camera2D")
+		if cam:
+			zoom = cam.zoom.x
+	var half := get_viewport().get_visible_rect().size / 2.0 / zoom
+	var margin := 80.0
 	var pos: Vector2
 	match randi() % 4:
 		0: pos = Vector2(randf_range(screen_center.x - half.x, screen_center.x + half.x), screen_center.y - half.y - margin)
@@ -251,13 +257,9 @@ func _show_boss_warning() -> void:
 func _on_level_up() -> void:
 	if level_up_sfx and level_up_sfx.stream:
 		level_up_sfx.play()
-	if upgrade_music and upgrade_music.stream and not upgrade_music.playing:
-		upgrade_music.volume_db = -6.0
-		upgrade_music.play()
 	if music_player and music_player.playing:
 		var tw := music_player.create_tween()
-		tw.tween_property(music_player, "volume_db", -60.0, 0.3)
-		tw.tween_callback(func(): music_player.stream_paused = true)
+		tw.tween_property(music_player, "volume_db", -18.0, 0.3)
 	if not level_up_screen or not is_instance_valid(level_up_screen):
 		level_up_screen = get_tree().get_first_node_in_group("level_up_screen")
 	if not level_up_screen:
@@ -274,12 +276,7 @@ func _on_upgrade_chosen() -> void:
 	else:
 		level_up_screen.hide()
 		get_tree().paused = false
-		if upgrade_music and upgrade_music.playing:
-			var tw := upgrade_music.create_tween()
-			tw.tween_property(upgrade_music, "volume_db", -60.0, 0.4)
-			tw.tween_callback(upgrade_music.stop)
-		if music_player and music_player.stream_paused:
-			music_player.stream_paused = false
+		if music_player and music_player.playing:
 			var tw := music_player.create_tween()
 			tw.tween_property(music_player, "volume_db", -8.0, 0.5)
 

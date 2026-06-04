@@ -23,20 +23,23 @@ var _last_dir:       Vector2 = Vector2.DOWN
 @onready var sprite:      Sprite2D        = $Sprite2D
 @onready var anim_player: AnimationPlayer = $AnimationPlayer
 
-const BASE_SCALE := Vector2(0.056, 0.056)
+const BASE_SCALE  := Vector2(3.0, 3.0)    # bat.png is 16x16 pixel art
+const BOSS_SCALE  := Vector2(0.168, 0.168) # boss1.png is a large source image
 
 # ---------------------------------------------------------------------------
 func _ready() -> void:
 	add_to_group("enemies")
-	_effective_scale = BASE_SCALE * (3.0 if is_boss else 1.0)
-	sprite.scale = _effective_scale
 	if is_boss:
+		_effective_scale = BOSS_SCALE
 		var boss_tex = load("res://assets/enemies/boss1.png")
 		if boss_tex:
 			sprite.texture = boss_tex
 		var boss_shape := CircleShape2D.new()
 		boss_shape.radius = 32.0
 		$CollisionShape2D.shape = boss_shape
+	else:
+		_effective_scale = BASE_SCALE
+	sprite.scale = _effective_scale
 	health = max_health
 	_player = get_tree().get_first_node_in_group("player")
 	_build_animations()
