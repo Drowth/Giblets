@@ -18,9 +18,9 @@ func launch(direction: Vector2, dmg: int, spd: float, pierce: int = 0) -> void:
 	_pierce = pierce
 
 func _draw() -> void:
-	draw_circle(Vector2.ZERO, 7, Color(1.0, 0.85, 0.1))
-	draw_circle(Vector2.ZERO, 4, Color(1.0, 0.45, 0.0))
-	draw_circle(Vector2.ZERO, 2, Color(1.0, 1.0, 0.8))
+	draw_circle(Vector2.ZERO, 4, Color(1.0, 0.75, 0.1, 0.85))
+	draw_circle(Vector2.ZERO, 2.5, Color(1.0, 0.45, 0.0, 0.9))
+	draw_circle(Vector2.ZERO, 1.5, Color(1.0, 1.0, 0.8))
 
 func _process(delta: float) -> void:
 	global_position += _dir * _speed * delta

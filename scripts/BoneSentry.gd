@@ -66,4 +66,4 @@ func _try_fire() -> void:
 		var proj: Area2D = PROJECTILE_SCENE.instantiate()
 		_proj_container.add_child(proj)
 		proj.global_position = global_position
-		proj.launch(dir.rotated(angle_offset), GameState.projectile_damage, GameState.projectile_speed, GameState.projectile_pierce)
+		proj.launch(dir.rotated(angle_offset), GameState.projectile_damage / 2, GameState.projectile_speed, GameState.projectile_pierce)

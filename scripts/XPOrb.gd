@@ -5,6 +5,7 @@ extends Node2D
 var _player: Node2D = null
 var _attracted: bool = false
 var _attract_speed: float = 80.0
+var _lifetime: float = 15.0
 
 func _ready() -> void:
 	_player = get_tree().get_first_node_in_group("player")
@@ -35,6 +36,11 @@ func _draw() -> void:
 	draw_circle(Vector2.ZERO, r * 0.30, inner)
 
 func _process(delta: float) -> void:
+	_lifetime -= delta
+	if _lifetime <= 0.0:
+		queue_free()
+		return
+	modulate.a = clampf(_lifetime / 3.0, 0.0, 1.0)
 	if not _player or not is_instance_valid(_player):
 		return
 	var dist := global_position.distance_to(_player.global_position)
