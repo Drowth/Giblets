@@ -1,8 +1,8 @@
-﻿[remap]
+[remap]
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dvrm8h9bxtqj5"
+uid="uid://kf0sndv0rcb3"
 path="res://.godot/imported/wraith.png-76909a9b194f86d5a5b8415b5c802bc9.ctex"
 metadata={
 "vram_texture": false
@@ -15,7 +15,7 @@ dest_files=["res://.godot/imported/wraith.png-76909a9b194f86d5a5b8415b5c802bc9.c
 
 [params]
 
-compress/mode=0
+compress/mode=3
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

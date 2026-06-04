@@ -30,12 +30,14 @@ func _process(delta: float) -> void:
 		return
 	var vp_size := get_viewport_rect().size
 	var cam := get_viewport().get_camera_2d()
+	var zoom := cam.zoom.x if cam else 1.0
 	var cam_center := cam.get_screen_center_position() if cam else vp_size / 2.0
+	var half := vp_size * 0.5 / zoom
 	var margin := 100.0
-	if (global_position.x < cam_center.x - vp_size.x * 0.5 - margin or
-			global_position.x > cam_center.x + vp_size.x * 0.5 + margin or
-			global_position.y < cam_center.y - vp_size.y * 0.5 - margin or
-			global_position.y > cam_center.y + vp_size.y * 0.5 + margin):
+	if (global_position.x < cam_center.x - half.x - margin or
+			global_position.x > cam_center.x + half.x + margin or
+			global_position.y < cam_center.y - half.y - margin or
+			global_position.y > cam_center.y + half.y + margin):
 		queue_free()
 
 func _on_body_entered(body: Node2D) -> void:

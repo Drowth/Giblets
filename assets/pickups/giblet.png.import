@@ -15,7 +15,7 @@ dest_files=["res://.godot/imported/giblet.png-9bb017125d79a09da667eadd6f699a74.c
 
 [params]
 
-compress/mode=0
+compress/mode=3
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

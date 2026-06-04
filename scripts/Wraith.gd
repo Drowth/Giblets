@@ -20,7 +20,7 @@ var _lunge_timer:   float   = 0.0
 var _lunge_active:  bool    = false
 var _lunge_dir:     Vector2 = Vector2.ZERO
 
-const SPRITE_SCALE := Vector2(0.056, 0.056)
+const SPRITE_SCALE := Vector2(3.0, 3.0)
 
 @onready var sprite:      Sprite2D        = $Sprite2D
 @onready var anim_player: AnimationPlayer = $AnimationPlayer
@@ -31,11 +31,9 @@ func _ready() -> void:
 	_player = get_tree().get_first_node_in_group("player")
 	sprite.scale    = SPRITE_SCALE
 	sprite.modulate = Color(0.72, 0.85, 1.0, 0.65)
-	for path in ["res://assets/enemies/wraith.png", "res://assets/enemies/demon_basic.png"]:
-		var tex = load(path) if ResourceLoader.exists(path) else null
-		if tex:
-			sprite.texture = tex
-			break
+	var tex = load("res://assets/enemies/ghost.png")
+	if tex:
+		sprite.texture = tex
 	_lunge_timer = randf_range(2.0, 4.0)
 	_build_animations()
 	anim_player.play("float")
