@@ -6,7 +6,7 @@ signal crt_enemies_changed(enabled: bool)
 signal resumed
 
 var _crt_enabled: bool        = true
-var _crt_affects_enemies: bool = true
+var _crt_affects_enemies: bool = false
 
 func _ready() -> void:
 	layer        = 210

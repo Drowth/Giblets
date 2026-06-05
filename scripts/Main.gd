@@ -2,6 +2,7 @@ extends Node2D
 
 const ENEMY_SCENE         = preload("res://scenes/Enemy.tscn")
 const WRAITH_SCENE        = preload("res://scenes/Wraith.tscn")
+const CYCLOPS_TEXTURE     = preload("res://assets/enemies/cyclops.png")
 const BONE_SENTRY_SCRIPT  = preload("res://scripts/BoneSentry.gd")
 const BLOOD_SMEARS_SCRIPT = preload("res://scripts/BloodSmears.gd")
 const OPTIONS_SCRIPT      = preload("res://ui/OptionsScreen.gd")
@@ -10,7 +11,7 @@ var _crt_rect:            ColorRect   = null
 var _enemies_canvas:      CanvasLayer = null
 var _options_screen:      CanvasLayer = null
 var _crt_enabled:         bool        = true
-var _crt_affects_enemies: bool        = true
+var _crt_affects_enemies: bool        = false
 
 @onready var enemies_container: Node2D = $Enemies
 @onready var projectiles_container: Node2D = $Projectiles
@@ -71,7 +72,7 @@ func _setup_crt() -> void:
 func _setup_enemies_canvas() -> void:
 	_enemies_canvas                      = CanvasLayer.new()
 	_enemies_canvas.follow_viewport_enabled = true
-	_enemies_canvas.layer                = 50  # below CRT (128) by default
+	_enemies_canvas.layer                = 150 if not _crt_affects_enemies else 50
 	add_child(_enemies_canvas)
 	enemies_container.reparent(_enemies_canvas)
 
@@ -177,8 +178,12 @@ func _spawn_wave() -> void:
 
 func _spawn_one(screen_center: Vector2) -> void:
 	var t := GameState.elapsed_time / 60.0
-	var wraith_chance := clampf((GameState.elapsed_time - 30.0) / 60.0, 0.0, 0.5)
-	if randf() < wraith_chance:
+	var cyclops_chance := clampf((GameState.elapsed_time - 60.0) / 120.0, 0.0, 0.25)
+	var wraith_chance  := clampf((GameState.elapsed_time - 30.0) / 60.0,  0.0, 0.50)
+	var roll := randf()
+	if roll < cyclops_chance:
+		_spawn_cyclops(screen_center, t)
+	elif roll < cyclops_chance + wraith_chance:
 		_spawn_wraith(screen_center, t)
 	else:
 		_spawn_demon(screen_center, t)
@@ -192,6 +197,17 @@ func _spawn_demon(screen_center: Vector2, t: float) -> void:
 	enemy.move_speed = 55.0 + t * 35.0
 	enemy.damage = int(10 * (1.0 + t * 0.5))
 	enemy.xp_value = int(20 * (1.0 + t * 0.4))
+
+func _spawn_cyclops(screen_center: Vector2, t: float) -> void:
+	var enemy: Node = ENEMY_SCENE.instantiate()
+	enemies_container.add_child(enemy)
+	enemy.sprite.texture = CYCLOPS_TEXTURE
+	enemy.global_position = _edge_pos(screen_center)
+	enemy.max_health = int(75 * (1.0 + t * 1.2))
+	enemy.health     = enemy.max_health
+	enemy.move_speed = 28.0 + t * 12.0
+	enemy.damage     = int(12 * (1.0 + t * 0.5))
+	enemy.xp_value   = int(60 * (1.0 + t * 0.4))
 
 func _spawn_wraith(screen_center: Vector2, t: float) -> void:
 	var wraith: Node = WRAITH_SCENE.instantiate()
@@ -243,7 +259,7 @@ func _show_boss_warning() -> void:
 	lbl.text = "BOSS INCOMING"
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lbl.vertical_alignment   = VERTICAL_ALIGNMENT_CENTER
-	lbl.add_theme_font_size_override("font_size", 40)
+	lbl.add_theme_font_size_override("font_size", 13)
 	lbl.add_theme_color_override("font_color", Color(1.0, 0.3, 0.0))
 	lbl.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
