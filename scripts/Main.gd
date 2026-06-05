@@ -3,6 +3,7 @@ extends Node2D
 const ENEMY_SCENE         = preload("res://scenes/Enemy.tscn")
 const WRAITH_SCENE        = preload("res://scenes/Wraith.tscn")
 const CYCLOPS_TEXTURE     = preload("res://assets/enemies/cyclops.png")
+const SPIDER_TEXTURE      = preload("res://assets/enemies/spider.png")
 const BONE_SENTRY_SCRIPT  = preload("res://scripts/BoneSentry.gd")
 const BLOOD_SMEARS_SCRIPT = preload("res://scripts/BloodSmears.gd")
 const OPTIONS_SCRIPT      = preload("res://ui/OptionsScreen.gd")
@@ -180,11 +181,14 @@ func _spawn_one(screen_center: Vector2) -> void:
 	var t := GameState.elapsed_time / 60.0
 	var cyclops_chance := clampf((GameState.elapsed_time - 60.0) / 120.0, 0.0, 0.25)
 	var wraith_chance  := clampf((GameState.elapsed_time - 30.0) / 60.0,  0.0, 0.50)
+	var spider_chance  := clampf(0.5 - GameState.elapsed_time / 120.0,   0.0, 0.50)
 	var roll := randf()
 	if roll < cyclops_chance:
 		_spawn_cyclops(screen_center, t)
 	elif roll < cyclops_chance + wraith_chance:
 		_spawn_wraith(screen_center, t)
+	elif roll < cyclops_chance + wraith_chance + spider_chance:
+		_spawn_spider(screen_center, t)
 	else:
 		_spawn_demon(screen_center, t)
 
@@ -197,6 +201,17 @@ func _spawn_demon(screen_center: Vector2, t: float) -> void:
 	enemy.move_speed = 55.0 + t * 35.0
 	enemy.damage = int(10 * (1.0 + t * 0.5))
 	enemy.xp_value = int(20 * (1.0 + t * 0.4))
+
+func _spawn_spider(screen_center: Vector2, t: float) -> void:
+	var enemy: Node = ENEMY_SCENE.instantiate()
+	enemies_container.add_child(enemy)
+	enemy.sprite.texture = SPIDER_TEXTURE
+	enemy.global_position = _edge_pos(screen_center)
+	enemy.max_health = int(10 * (1.0 + t * 0.8))
+	enemy.health     = enemy.max_health
+	enemy.move_speed = 95.0 + t * 30.0
+	enemy.damage     = int(6 * (1.0 + t * 0.4))
+	enemy.xp_value   = int(8 * (1.0 + t * 0.3))
 
 func _spawn_cyclops(screen_center: Vector2, t: float) -> void:
 	var enemy: Node = ENEMY_SCENE.instantiate()
