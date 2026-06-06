@@ -16,6 +16,8 @@ const BLOOD_DROP      = preload("res://scripts/BloodTrailDrop.gd")
 var is_invincible: bool     = false
 var _proj_container: Node2D = null
 var _trail_timer: float     = 0.0
+var _slow_factor: float     = 1.0
+var _slow_timer:  float     = 0.0
 
 func _ready() -> void:
 	add_to_group("player")
@@ -62,16 +64,23 @@ func _build_animations() -> void:
 	anim_player.add_animation_library("", lib)
 
 func _physics_process(delta: float) -> void:
+	if _slow_timer > 0.0:
+		_slow_timer -= delta
+		if _slow_timer <= 0.0:
+			_slow_factor = 1.0
+		queue_redraw()
+
 	var dir := Vector2(
 		Input.get_axis("ui_left", "ui_right"),
 		Input.get_axis("ui_up", "ui_down")
 	)
+	var effective_speed := GameState.move_speed * _slow_factor
 	if dir != Vector2.ZERO:
-		velocity = dir.normalized() * GameState.move_speed
+		velocity = dir.normalized() * effective_speed
 		if dir.x != 0.0:
 			sprite.flip_h = dir.x < 0.0
 	else:
-		velocity = velocity.move_toward(Vector2.ZERO, GameState.move_speed)
+		velocity = velocity.move_toward(Vector2.ZERO, effective_speed)
 	move_and_slide()
 	global_position.x = clampf(global_position.x, 20.0, GameState.WORLD_SIZE.x - 20.0)
 	global_position.y = clampf(global_position.y, 20.0, GameState.WORLD_SIZE.y - 20.0)
@@ -123,6 +132,17 @@ func _fire() -> void:
 			GameState.projectile_speed,
 			GameState.projectile_pierce
 		)
+
+func apply_slow(duration: float, factor: float) -> void:
+	_slow_factor = minf(_slow_factor, factor)
+	_slow_timer  = maxf(_slow_timer, duration)
+	queue_redraw()
+
+func _draw() -> void:
+	if _slow_timer <= 0.0:
+		return
+	var alpha := clampf(_slow_timer / 3.0, 0.15, 0.65)
+	draw_arc(Vector2.ZERO, 18.0, 0.0, TAU, 24, Color(0.3, 0.55, 1.0, alpha), 2.5)
 
 func take_damage(amount: int) -> void:
 	if is_invincible:

@@ -83,22 +83,23 @@ func _anim_walk() -> Animation:
 
 func _anim_hurt() -> Animation:
 	var a := Animation.new()
-	a.length    = 0.15
+	a.length    = 0.22
 	a.loop_mode = Animation.LOOP_NONE
 	var ts := a.add_track(Animation.TYPE_VALUE)
 	a.track_set_path(ts, "Sprite2D:scale")
 	a.value_track_set_update_mode(ts, Animation.UPDATE_CONTINUOUS)
 	a.track_insert_key(ts, 0.00, _effective_scale)
-	a.track_insert_key(ts, 0.05, Vector2(_effective_scale.x * 1.3, _effective_scale.y * 0.7))
-	a.track_insert_key(ts, 0.10, Vector2(_effective_scale.x * 0.9, _effective_scale.y * 1.1))
-	a.track_insert_key(ts, 0.15, _effective_scale)
+	a.track_insert_key(ts, 0.07, Vector2(_effective_scale.x * 1.3, _effective_scale.y * 0.7))
+	a.track_insert_key(ts, 0.13, Vector2(_effective_scale.x * 0.9, _effective_scale.y * 1.1))
+	a.track_insert_key(ts, 0.22, _effective_scale)
 	var tm := a.add_track(Animation.TYPE_VALUE)
 	a.track_set_path(tm, "Sprite2D:modulate")
 	a.value_track_set_update_mode(tm, Animation.UPDATE_CONTINUOUS)
 	var base_mod := Color.WHITE
 	a.track_insert_key(tm, 0.00, base_mod)
-	a.track_insert_key(tm, 0.03, Color(4.0, 4.0, 4.0, 1.0))
-	a.track_insert_key(tm, 0.15, base_mod)
+	a.track_insert_key(tm, 0.02, Color(4.0, 4.0, 4.0, 1.0))
+	a.track_insert_key(tm, 0.10, Color(4.0, 4.0, 4.0, 1.0))
+	a.track_insert_key(tm, 0.22, base_mod)
 	return a
 
 func _anim_death() -> Animation:
@@ -115,6 +116,11 @@ func _anim_death() -> Animation:
 	a.value_track_set_update_mode(ts, Animation.UPDATE_CONTINUOUS)
 	a.track_insert_key(ts, 0.0, _effective_scale)
 	a.track_insert_key(ts, 0.4, Vector2.ZERO)
+	var tm := a.add_track(Animation.TYPE_VALUE)
+	a.track_set_path(tm, "Sprite2D:modulate")
+	a.value_track_set_update_mode(tm, Animation.UPDATE_CONTINUOUS)
+	a.track_insert_key(tm, 0.00, Color(4.0, 4.0, 4.0))
+	a.track_insert_key(tm, 0.08, Color.WHITE)
 	return a
 
 # ---------------------------------------------------------------------------
@@ -189,7 +195,7 @@ func take_hit(dmg: int) -> void:
 	sprite.position = Vector2.ZERO
 	sprite.rotation = 0.0
 	anim_player.play("hurt")
-	await get_tree().create_timer(0.18).timeout
+	await get_tree().create_timer(0.25).timeout
 	if not _dead:
 		anim_player.play("walk" if velocity.length() > 5.0 else "idle")
 

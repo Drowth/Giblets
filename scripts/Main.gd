@@ -2,8 +2,8 @@ extends Node2D
 
 const ENEMY_SCENE         = preload("res://scenes/Enemy.tscn")
 const WRAITH_SCENE        = preload("res://scenes/Wraith.tscn")
+const SPIDER_SCENE        = preload("res://scenes/Spider.tscn")
 const CYCLOPS_TEXTURE     = preload("res://assets/enemies/cyclops.png")
-const SPIDER_TEXTURE      = preload("res://assets/enemies/spider.png")
 const BONE_SENTRY_SCRIPT  = preload("res://scripts/BoneSentry.gd")
 const BLOOD_SMEARS_SCRIPT = preload("res://scripts/BloodSmears.gd")
 const OPTIONS_SCRIPT      = preload("res://ui/OptionsScreen.gd")
@@ -203,15 +203,14 @@ func _spawn_demon(screen_center: Vector2, t: float) -> void:
 	enemy.xp_value = int(20 * (1.0 + t * 0.4))
 
 func _spawn_spider(screen_center: Vector2, t: float) -> void:
-	var enemy: Node = ENEMY_SCENE.instantiate()
-	enemies_container.add_child(enemy)
-	enemy.sprite.texture = SPIDER_TEXTURE
-	enemy.global_position = _edge_pos(screen_center)
-	enemy.max_health = int(10 * (1.0 + t * 0.8))
-	enemy.health     = enemy.max_health
-	enemy.move_speed = 95.0 + t * 30.0
-	enemy.damage     = int(6 * (1.0 + t * 0.4))
-	enemy.xp_value   = int(8 * (1.0 + t * 0.3))
+	var spider: Node = SPIDER_SCENE.instantiate()
+	enemies_container.add_child(spider)
+	spider.global_position = _edge_pos(screen_center)
+	spider.max_health = int(10 * (1.0 + t * 0.8))
+	spider.health     = spider.max_health
+	spider.move_speed = 95.0 + t * 30.0
+	spider.damage     = int(6 * (1.0 + t * 0.4))
+	spider.xp_value   = int(8 * (1.0 + t * 0.3))
 
 func _spawn_cyclops(screen_center: Vector2, t: float) -> void:
 	var enemy: Node = ENEMY_SCENE.instantiate()
