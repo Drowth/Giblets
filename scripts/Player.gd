@@ -106,7 +106,7 @@ func _do_dash_knockback() -> void:
 			continue
 		if global_position.distance_to(enemy.global_position) < radius:
 			_dash_hit_set.append(enemy)
-			var dir: Vector2 = (enemy.global_position - global_position).normalized()
+			var dir: Vector2 = _dash_dir
 			if enemy.has_method("apply_knockback"):
 				enemy.apply_knockback(dir, force)
 
