@@ -7,17 +7,29 @@ const TEX_LVL2        = preload("res://assets/player/player2.png")
 const TEX_LVL3        = preload("res://assets/player/player3.png")
 const BLOOD_DROP      = preload("res://scripts/BloodTrailDrop.gd")
 
+const DASH_SPEED:           float = 600.0
+const DASH_DURATION_BASE:   float = 0.20
+const DASH_COOLDOWN_BASE:   float = 3.0
+const DASH_KNOCKBACK_BASE:  float = 65.0
+const DASH_KNOCKBACK_FORCE: float = 550.0
+
 @onready var attack_timer:  Timer           = $AttackTimer
 @onready var iframes_timer: Timer           = $IFramesTimer
 @onready var sprite:        Sprite2D        = $Sprite2D
 @onready var anim_player:   AnimationPlayer = $AnimationPlayer
 @onready var camera:        Camera2D        = $Camera2D
 
-var is_invincible: bool     = false
-var _proj_container: Node2D = null
-var _trail_timer: float     = 0.0
-var _slow_factor: float     = 1.0
-var _slow_timer:  float     = 0.0
+var is_invincible:   bool     = false
+var _proj_container: Node2D   = null
+var _trail_timer:    float    = 0.0
+var _slow_factor:    float    = 1.0
+var _slow_timer:     float    = 0.0
+var _dash_active:    bool     = false
+var _dash_timer:     float    = 0.0
+var _dash_cooldown:  float    = 0.0
+var _dash_dir:       Vector2  = Vector2.RIGHT
+var _dash_hit_set:   Array    = []
+var _last_move_dir:  Vector2  = Vector2.DOWN
 
 func _ready() -> void:
 	add_to_group("player")
@@ -35,7 +47,6 @@ func _ready() -> void:
 func _build_animations() -> void:
 	var lib := AnimationLibrary.new()
 
-	# Idle: gentle 2px bob, 1.0s
 	var idle := Animation.new()
 	idle.length = 1.0
 	idle.loop_mode = Animation.LOOP_LINEAR
@@ -47,7 +58,6 @@ func _build_animations() -> void:
 	idle.track_insert_key(t, 1.0, Vector2(0,  0))
 	lib.add_animation("idle", idle)
 
-	# Walk: snappier 3px bob, 0.35s
 	var walk := Animation.new()
 	walk.length = 0.35
 	walk.loop_mode = Animation.LOOP_LINEAR
@@ -63,12 +73,68 @@ func _build_animations() -> void:
 
 	anim_player.add_animation_library("", lib)
 
+func _unhandled_input(event: InputEvent) -> void:
+	if not GameState.game_active:
+		return
+	if event.is_action_pressed("dash"):
+		_try_dash()
+	elif event is InputEventMouseButton and event.pressed \
+			and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
+		_try_dash()
+
+func _try_dash() -> void:
+	if _dash_cooldown > 0.0 or _dash_active:
+		return
+	var mouse_world := get_global_mouse_position()
+	_dash_dir = (mouse_world - global_position).normalized()
+	if _dash_dir.length_squared() < 0.01:
+		_dash_dir = _last_move_dir
+	_dash_hit_set.clear()
+	_dash_active  = true
+	_dash_timer   = DASH_DURATION_BASE * GameState.dash_distance_mul
+	_dash_cooldown = DASH_COOLDOWN_BASE * GameState.dash_cooldown_mul
+	# Clear web slow — dashing through breaks it
+	_slow_factor = 1.0
+	_slow_timer  = 0.0
+	is_invincible = true
+	iframes_timer.start(_dash_timer + 0.05)
+	queue_redraw()
+
+func _do_dash_knockback() -> void:
+	var radius := DASH_KNOCKBACK_BASE * GameState.dash_knockback_mul
+	var force  := DASH_KNOCKBACK_FORCE * GameState.dash_knockback_mul
+	for enemy in get_tree().get_nodes_in_group("enemies"):
+		if enemy in _dash_hit_set:
+			continue
+		if global_position.distance_to(enemy.global_position) < radius:
+			_dash_hit_set.append(enemy)
+			var dir := (enemy.global_position - global_position).normalized()
+			if enemy.has_method("apply_knockback"):
+				enemy.apply_knockback(dir, force)
+
 func _physics_process(delta: float) -> void:
+	# Dash active — override all movement
+	if _dash_active:
+		_dash_timer -= delta
+		_do_dash_knockback()
+		if _dash_timer <= 0.0:
+			_dash_active = false
+		velocity = _dash_dir * DASH_SPEED
+		move_and_slide()
+		global_position.x = clampf(global_position.x, 20.0, GameState.WORLD_SIZE.x - 20.0)
+		global_position.y = clampf(global_position.y, 20.0, GameState.WORLD_SIZE.y - 20.0)
+		queue_redraw()
+		return
+
+	# Dash cooldown countdown
+	if _dash_cooldown > 0.0:
+		_dash_cooldown = maxf(0.0, _dash_cooldown - delta)
+
+	# Web slow countdown
 	if _slow_timer > 0.0:
 		_slow_timer -= delta
 		if _slow_timer <= 0.0:
 			_slow_factor = 1.0
-		queue_redraw()
 
 	var dir := Vector2(
 		Input.get_axis("ui_left", "ui_right"),
@@ -76,7 +142,8 @@ func _physics_process(delta: float) -> void:
 	)
 	var effective_speed := GameState.move_speed * _slow_factor
 	if dir != Vector2.ZERO:
-		velocity = dir.normalized() * effective_speed
+		_last_move_dir = dir.normalized()
+		velocity = _last_move_dir * effective_speed
 		if dir.x != 0.0:
 			sprite.flip_h = dir.x < 0.0
 	else:
@@ -86,7 +153,6 @@ func _physics_process(delta: float) -> void:
 	global_position.y = clampf(global_position.y, 20.0, GameState.WORLD_SIZE.y - 20.0)
 
 	var moving := velocity.length() > 5.0
-
 	if moving:
 		_trail_timer -= delta
 		if _trail_timer <= 0.0:
@@ -98,6 +164,8 @@ func _physics_process(delta: float) -> void:
 		anim_player.play("walk")
 	elif not moving and cur != "idle":
 		anim_player.play("idle")
+
+	queue_redraw()
 
 func _fire() -> void:
 	attack_timer.wait_time = 1.0 / GameState.fire_rate
@@ -134,15 +202,28 @@ func _fire() -> void:
 		)
 
 func apply_slow(duration: float, factor: float) -> void:
+	if _dash_active:
+		return
 	_slow_factor = minf(_slow_factor, factor)
 	_slow_timer  = maxf(_slow_timer, duration)
 	queue_redraw()
 
 func _draw() -> void:
-	if _slow_timer <= 0.0:
-		return
-	var alpha := clampf(_slow_timer / 3.0, 0.15, 0.65)
-	draw_arc(Vector2.ZERO, 18.0, 0.0, TAU, 24, Color(0.3, 0.55, 1.0, alpha), 2.5)
+	# Web-slow ring: fading blue arc
+	if _slow_timer > 0.0:
+		var alpha := clampf(_slow_timer / 3.0, 0.15, 0.65)
+		draw_arc(Vector2.ZERO, 18.0, 0.0, TAU, 24, Color(0.3, 0.55, 1.0, alpha), 2.5)
+
+	# Dash cooldown ring: fills clockwise from top; pulses gold when ready
+	var eff_cd := DASH_COOLDOWN_BASE * GameState.dash_cooldown_mul
+	if _dash_cooldown > 0.0:
+		var frac := 1.0 - clampf(_dash_cooldown / eff_cd, 0.0, 1.0)
+		if frac > 0.0:
+			draw_arc(Vector2.ZERO, 22.0, -PI * 0.5,
+					-PI * 0.5 + TAU * frac, 36, Color(0.85, 0.82, 0.18, 0.60), 2.0)
+	else:
+		var pulse := 0.30 + 0.22 * sin(Time.get_ticks_msec() * 0.006)
+		draw_arc(Vector2.ZERO, 22.0, 0.0, TAU, 36, Color(1.0, 0.90, 0.12, pulse), 2.0)
 
 func take_damage(amount: int) -> void:
 	if is_invincible:

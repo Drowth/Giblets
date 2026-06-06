@@ -1,8 +1,8 @@
 extends Node2D
 
 var _dir:      Vector2 = Vector2.RIGHT
-var _speed:    float   = 75.0
-var _lifetime: float   = 2.5
+var _speed:    float   = 180.0
+var _lifetime: float   = 2.0
 
 func launch(dir: Vector2) -> void:
 	_dir = dir

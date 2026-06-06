@@ -29,6 +29,9 @@ var xp_magnet_range: float = 120.0
 var projectile_count: int = 1
 var projectile_pierce: int = 0
 var knockback_force: float = 0.0
+var dash_cooldown_mul: float = 1.0
+var dash_distance_mul: float = 1.0
+var dash_knockback_mul: float = 1.0
 
 var _pending_level_ups: int = 0
 var sentry_count: int = 0
@@ -52,6 +55,9 @@ func _reset() -> void:
 	projectile_count = 1
 	projectile_pierce = 0
 	knockback_force = 0.0
+	dash_cooldown_mul  = 1.0
+	dash_distance_mul  = 1.0
+	dash_knockback_mul = 1.0
 	_pending_level_ups = 0
 	sentry_count = 0
 	score = 0

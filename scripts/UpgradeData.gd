@@ -101,6 +101,24 @@ const ALL_UPGRADES: Array[Dictionary] = [
 		"icon_path": "res://assets/pickups/sentinel.png",
 		"stat": "spawn_sentry"
 	},
+	{
+		"id": "dash_cd_1", "name": "Afterburn", "rarity": "uncommon",
+		"description": "Dash cooldown reduced by 20% — blink more, die less",
+		"color": Color(0.2, 0.9, 1.0),
+		"stat": "dash_cooldown_mul", "multiplier": 0.8
+	},
+	{
+		"id": "dash_dist_1", "name": "Ghost Step", "rarity": "rare",
+		"description": "Dash covers 35% more ground in a single bound",
+		"color": Color(0.55, 0.15, 1.0),
+		"stat": "dash_distance_mul", "multiplier": 1.35
+	},
+	{
+		"id": "dash_knock_1", "name": "Shockwave", "rarity": "epic",
+		"description": "Your dash erupts outward — enemies are flung twice as hard",
+		"color": Color(0.9, 0.1, 0.95),
+		"stat": "dash_knockback_mul", "multiplier": 2.0
+	},
 ]
 
 static func get_random_choices(count: int = 3) -> Array[Dictionary]:
@@ -131,6 +149,12 @@ static func apply_upgrade(upgrade: Dictionary) -> void:
 			GameState.projectile_pierce += upgrade.get("add", 0)
 		"knockback_force":
 			GameState.knockback_force += upgrade.get("add", 0)
+		"dash_cooldown_mul":
+			GameState.dash_cooldown_mul *= upgrade.get("multiplier", 1.0)
+		"dash_distance_mul":
+			GameState.dash_distance_mul *= upgrade.get("multiplier", 1.0)
+		"dash_knockback_mul":
+			GameState.dash_knockback_mul *= upgrade.get("multiplier", 1.0)
 		"spawn_sentry":
 			GameState.sentry_count += 1
 			GameState.sentry_summoned.emit()

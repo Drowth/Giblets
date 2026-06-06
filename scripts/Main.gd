@@ -157,6 +157,11 @@ func _setup_inputs() -> void:
 		var ev := InputEventKey.new()
 		ev.keycode = wasd[action]
 		InputMap.action_add_event(action, ev)
+	if not InputMap.has_action("dash"):
+		InputMap.add_action("dash")
+	var space := InputEventKey.new()
+	space.keycode = KEY_SPACE
+	InputMap.action_add_event("dash", space)
 
 func _process(_delta: float) -> void:
 	spawn_timer.wait_time = maxf(0.35, 2.0 - GameState.elapsed_time * 0.012)
