@@ -9,6 +9,10 @@ signal score_changed(new_score: int)
 signal game_over
 signal level_up_triggered
 signal sentry_summoned
+signal shake_requested(strength: float, duration: float)
+
+var crt_enabled: bool = true
+var crt_affects_enemies: bool = false
 
 var score: int = 0
 var enemies_killed: int = 0
@@ -109,3 +113,19 @@ func increase_max_health(amount: int) -> void:
 	player_max_health += amount
 	player_health = min(player_health + amount, player_max_health)
 	health_changed.emit(player_health, player_max_health)
+
+func screen_shake(strength: float, duration: float) -> void:
+	shake_requested.emit(strength, duration)
+
+var _hitstop_depth: int = 0
+
+func hitstop(duration: float) -> void:
+	if not game_active or get_tree().paused:
+		return
+	_hitstop_depth += 1
+	Engine.time_scale = 0.0
+	await get_tree().create_timer(duration, true, false, true).timeout
+	_hitstop_depth -= 1
+	if _hitstop_depth <= 0:
+		_hitstop_depth = 0
+		Engine.time_scale = 1.0

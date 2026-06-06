@@ -19,17 +19,20 @@ const DASH_KNOCKBACK_FORCE: float = 550.0
 @onready var anim_player:   AnimationPlayer = $AnimationPlayer
 @onready var camera:        Camera2D        = $Camera2D
 
-var is_invincible:   bool     = false
-var _proj_container: Node2D   = null
-var _trail_timer:    float    = 0.0
-var _slow_factor:    float    = 1.0
-var _slow_timer:     float    = 0.0
-var _dash_active:    bool     = false
-var _dash_timer:     float    = 0.0
-var _dash_cooldown:  float    = 0.0
-var _dash_dir:       Vector2  = Vector2.RIGHT
-var _dash_hit_set:   Array    = []
-var _last_move_dir:  Vector2  = Vector2.DOWN
+var is_invincible:    bool     = false
+var _proj_container:  Node2D   = null
+var _trail_timer:     float    = 0.0
+var _slow_factor:     float    = 1.0
+var _slow_timer:      float    = 0.0
+var _dash_active:     bool     = false
+var _dash_timer:      float    = 0.0
+var _dash_cooldown:   float    = 0.0
+var _dash_dir:        Vector2  = Vector2.RIGHT
+var _dash_hit_set:    Array    = []
+var _last_move_dir:   Vector2  = Vector2.DOWN
+var _shake_strength:  float    = 0.0
+var _shake_timer:     float    = 0.0
+var _shake_duration:  float    = 1.0
 
 func _ready() -> void:
 	add_to_group("player")
@@ -38,6 +41,7 @@ func _ready() -> void:
 	iframes_timer.timeout.connect(func(): is_invincible = false)
 	GameState.game_over.connect(_on_game_over)
 	GameState.level_changed.connect(_on_level_changed)
+	GameState.shake_requested.connect(shake)
 	camera.limit_right  = int(GameState.WORLD_SIZE.x)
 	camera.limit_bottom = int(GameState.WORLD_SIZE.y)
 	camera.zoom = Vector2(0.3, 0.3)
@@ -227,6 +231,24 @@ func _draw() -> void:
 		var pulse := 0.30 + 0.22 * sin(Time.get_ticks_msec() * 0.006)
 		draw_arc(Vector2.ZERO, 22.0, 0.0, TAU, 36, Color(1.0, 0.90, 0.12, pulse), 2.0)
 
+func shake(strength: float, duration: float) -> void:
+	_shake_strength = maxf(_shake_strength, strength)
+	if duration > _shake_timer:
+		_shake_timer   = duration
+		_shake_duration = duration
+
+func _process(delta: float) -> void:
+	if _shake_timer > 0.0 and delta > 0.0:
+		_shake_timer = maxf(0.0, _shake_timer - delta)
+		var decay := _shake_timer / _shake_duration
+		camera.offset = Vector2(
+			randf_range(-_shake_strength, _shake_strength) * decay,
+			randf_range(-_shake_strength, _shake_strength) * decay
+		)
+		if _shake_timer <= 0.0:
+			_shake_strength = 0.0
+			camera.offset   = Vector2.ZERO
+
 func take_damage(amount: int) -> void:
 	if is_invincible:
 		return
@@ -234,6 +256,8 @@ func take_damage(amount: int) -> void:
 	is_invincible = true
 	iframes_timer.start(0.6)
 	_flash_damage()
+	shake(30.0, 0.18)
+	GameState.hitstop(0.05)
 
 func _flash_damage() -> void:
 	for _i in 3:

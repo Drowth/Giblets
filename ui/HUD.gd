@@ -240,9 +240,15 @@ func _build_leaderboard(vbox: VBoxContainer, current_rank: int) -> void:
 	spacer.custom_minimum_size = Vector2(0, 4)
 	vbox.add_child(spacer)
 
+	var btn_row := HBoxContainer.new()
+	btn_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	btn_row.add_theme_constant_override("separation", 6)
+	btn_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vbox.add_child(btn_row)
+
 	var restart_btn := Button.new()
 	restart_btn.text = "RISE AGAIN"
-	restart_btn.custom_minimum_size = Vector2(80, 17)
+	restart_btn.custom_minimum_size = Vector2(72, 17)
 	restart_btn.process_mode = Node.PROCESS_MODE_ALWAYS
 	restart_btn.add_theme_font_size_override("font_size", 8)
 	restart_btn.pressed.connect(func():
@@ -250,5 +256,17 @@ func _build_leaderboard(vbox: VBoxContainer, current_rank: int) -> void:
 		GameState.start_game()
 		get_tree().reload_current_scene()
 	)
-	vbox.add_child(restart_btn)
+	btn_row.add_child(restart_btn)
+
+	var menu_btn := Button.new()
+	menu_btn.text = "MAIN MENU"
+	menu_btn.custom_minimum_size = Vector2(72, 17)
+	menu_btn.process_mode = Node.PROCESS_MODE_ALWAYS
+	menu_btn.add_theme_font_size_override("font_size", 8)
+	menu_btn.pressed.connect(func():
+		get_tree().paused = false
+		get_tree().change_scene_to_file("res://scenes/MainMenu.tscn")
+	)
+	btn_row.add_child(menu_btn)
+
 	restart_btn.grab_focus()

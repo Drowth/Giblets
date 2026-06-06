@@ -48,6 +48,8 @@ func _on_body_entered(body: Node2D) -> void:
 	_hit_set.append(body)
 	if body.has_method("take_hit"):
 		body.take_hit(_damage)
+	GameState.screen_shake(4.0, 0.04)
+	GameState.hitstop(0.035)
 	if GameState.knockback_force > 0.0 and body.has_method("apply_knockback"):
 		body.apply_knockback(_dir, GameState.knockback_force)
 	if _hit_set.size() > _pierce:

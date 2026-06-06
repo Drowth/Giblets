@@ -54,6 +54,8 @@ func _setup_blood_smears() -> void:
 	add_child(node)
 
 func _setup_crt() -> void:
+	_crt_enabled         = GameState.crt_enabled
+	_crt_affects_enemies = GameState.crt_affects_enemies
 	$UI.layer = 200
 	var crt_layer := CanvasLayer.new()
 	crt_layer.layer        = 128
@@ -62,6 +64,7 @@ func _setup_crt() -> void:
 	_crt_rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_crt_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_crt_rect.process_mode = Node.PROCESS_MODE_ALWAYS
+	_crt_rect.visible      = _crt_enabled
 	var shader = load("res://shaders/crt_effect.gdshader")
 	if shader:
 		var mat := ShaderMaterial.new()
@@ -100,10 +103,12 @@ func _close_options() -> void:
 
 func _on_crt_changed(enabled: bool) -> void:
 	_crt_enabled = enabled
+	GameState.crt_enabled = enabled
 	_apply_crt_settings()
 
 func _on_crt_enemies_changed(enabled: bool) -> void:
 	_crt_affects_enemies = enabled
+	GameState.crt_affects_enemies = enabled
 	_apply_crt_settings()
 
 func _apply_crt_settings() -> void:
