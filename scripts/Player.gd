@@ -7,7 +7,7 @@ const TEX_LVL2        = preload("res://assets/player/player2.png")
 const TEX_LVL3        = preload("res://assets/player/player3.png")
 const BLOOD_DROP      = preload("res://scripts/BloodTrailDrop.gd")
 
-const DASH_SPEED:           float = 600.0
+const DASH_SPEED:           float = 1200.0
 const DASH_DURATION_BASE:   float = 0.20
 const DASH_COOLDOWN_BASE:   float = 3.0
 const DASH_KNOCKBACK_BASE:  float = 65.0
@@ -99,16 +99,20 @@ func _try_dash() -> void:
 	queue_redraw()
 
 func _do_dash_knockback() -> void:
-	var radius := DASH_KNOCKBACK_BASE * GameState.dash_knockback_mul
-	var force  := DASH_KNOCKBACK_FORCE * GameState.dash_knockback_mul
+	var radius       := DASH_KNOCKBACK_BASE * GameState.dash_knockback_mul
+	var force        := DASH_KNOCKBACK_FORCE * GameState.dash_knockback_mul
+	var contact_dist := 32.0  # player radius (15) + enemy radius (13) + buffer
 	for enemy: Node2D in get_tree().get_nodes_in_group("enemies"):
-		if enemy in _dash_hit_set:
-			continue
-		if global_position.distance_to(enemy.global_position) < radius:
+		var diff := enemy.global_position - global_position
+		var d    := diff.length()
+		var dir  := diff.normalized() if d > 0.01 else _dash_dir
+		if enemy not in _dash_hit_set and d < radius:
 			_dash_hit_set.append(enemy)
-			var dir: Vector2 = _dash_dir
 			if enemy.has_method("apply_knockback"):
 				enemy.apply_knockback(dir, force)
+		# Every frame: push overlapping enemies physically outside contact radius
+		if d < contact_dist and d > 0.01:
+			enemy.global_position += dir * (contact_dist - d)
 
 func _physics_process(delta: float) -> void:
 	# Dash active — override all movement
