@@ -78,9 +78,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event.is_action_pressed("dash"):
 		_try_dash()
-	elif event is InputEventMouseButton and event.pressed \
-			and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
-		_try_dash()
+	elif event is InputEventMouseButton:
+		var mb := event as InputEventMouseButton
+		if mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
+			_try_dash()
 
 func _try_dash() -> void:
 	if _dash_cooldown > 0.0 or _dash_active:
@@ -103,12 +104,12 @@ func _try_dash() -> void:
 func _do_dash_knockback() -> void:
 	var radius := DASH_KNOCKBACK_BASE * GameState.dash_knockback_mul
 	var force  := DASH_KNOCKBACK_FORCE * GameState.dash_knockback_mul
-	for enemy in get_tree().get_nodes_in_group("enemies"):
+	for enemy: Node2D in get_tree().get_nodes_in_group("enemies"):
 		if enemy in _dash_hit_set:
 			continue
 		if global_position.distance_to(enemy.global_position) < radius:
 			_dash_hit_set.append(enemy)
-			var dir := (enemy.global_position - global_position).normalized()
+			var dir: Vector2 = (enemy.global_position - global_position).normalized()
 			if enemy.has_method("apply_knockback"):
 				enemy.apply_knockback(dir, force)
 
