@@ -86,10 +86,7 @@ func _unhandled_input(event: InputEvent) -> void:
 func _try_dash() -> void:
 	if _dash_cooldown > 0.0 or _dash_active:
 		return
-	var mouse_world := get_global_mouse_position()
-	_dash_dir = (mouse_world - global_position).normalized()
-	if _dash_dir.length_squared() < 0.01:
-		_dash_dir = _last_move_dir
+	_dash_dir = _last_move_dir
 	_dash_hit_set.clear()
 	_dash_active  = true
 	_dash_timer   = DASH_DURATION_BASE * GameState.dash_distance_mul
