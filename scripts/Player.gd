@@ -11,6 +11,9 @@ const DASH_COOLDOWN_BASE:   float = 3.0
 const DASH_KNOCKBACK_BASE:  float = 65.0
 const DASH_KNOCKBACK_FORCE: float = 550.0
 
+const DASH_SOUND  := "res://assets/sfx/game/dash.wav"
+const HURT_SOUND  := "res://assets/sfx/combat/player_hurt.wav"
+
 @onready var attack_timer:  Timer           = $AttackTimer
 @onready var iframes_timer: Timer           = $IFramesTimer
 @onready var sprite:        Sprite2D        = $Sprite2D
@@ -98,6 +101,7 @@ func _try_dash() -> void:
 	_slow_timer  = 0.0
 	is_invincible = true
 	iframes_timer.start(_dash_timer + 0.05)
+	Sfx.play(DASH_SOUND, -8.0, 0.08)
 	for _i in 5:
 		_spawn_dash_dust()
 	queue_redraw()
@@ -264,6 +268,7 @@ func take_damage(amount: int) -> void:
 	GameState.take_damage(amount)
 	is_invincible = true
 	iframes_timer.start(0.6)
+	Sfx.play(HURT_SOUND, -4.0, 0.1)
 	_flash_damage()
 	shake(30.0, 0.18)
 	GameState.hitstop(0.05)

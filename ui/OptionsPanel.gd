@@ -6,6 +6,12 @@ extends VBoxContainer
 
 signal closed
 
+const HOVER_SOUND      := "res://assets/sfx/ui/hover.wav"
+const SELECT_SOUND     := "res://assets/sfx/ui/select.wav"
+const CANCEL_SOUND     := "res://assets/sfx/ui/cancel.wav"
+const TOGGLE_ON_SOUND  := "res://assets/sfx/ui/toggle_on.wav"
+const TOGGLE_OFF_SOUND := "res://assets/sfx/ui/toggle_off.wav"
+
 var _rebinding_action: String = ""
 var _rebind_button: Button = null
 
@@ -70,7 +76,7 @@ func _rebuild() -> void:
 	for action in Settings.REBINDABLE_ACTIONS:
 		_add_rebind_row(action)
 
-	var back := _make_button("BACK", Color(1.0, 0.45, 0.0))
+	var back := _make_button("BACK", Color(1.0, 0.45, 0.0), "cancel")
 	back.pressed.connect(func(): closed.emit())
 	add_child(back)
 	back.grab_focus()
@@ -98,8 +104,11 @@ func _add_slider(label_text: String, value: float, on_change: Callable) -> void:
 
 func _add_toggle(label_text: String, state: bool, on_press: Callable) -> void:
 	var color := Color(0.25, 1.0, 0.25) if state else Color(0.6, 0.6, 0.6)
-	var btn := _make_button("%s:  %s" % [label_text, "ON" if state else "OFF"], color)
-	btn.pressed.connect(on_press)
+	var btn := _make_button("%s:  %s" % [label_text, "ON" if state else "OFF"], color, "none")
+	btn.pressed.connect(func():
+		Sfx.play(TOGGLE_OFF_SOUND if state else TOGGLE_ON_SOUND, -6.0)
+		on_press.call()
+	)
 	add_child(btn)
 
 func _add_rebind_row(action: String) -> void:
@@ -130,12 +139,15 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		return
 	get_viewport().set_input_as_handled()
 	Settings.rebind(_rebinding_action, key.physical_keycode)
+	Sfx.play(SELECT_SOUND, -5.0)
 	if _rebind_button and is_instance_valid(_rebind_button):
 		_rebind_button.text = Settings.current_key_name(_rebinding_action)
 	_rebinding_action = ""
 	_rebind_button = null
 
-func _make_button(text: String, font_color: Color) -> Button:
+# sound: "select" (default confirm), "cancel" (softer, for BACK), or "none"
+# (caller plays its own sound, e.g. toggles which need on/off variants).
+func _make_button(text: String, font_color: Color, sound: String = "select") -> Button:
 	var btn := Button.new()
 	btn.text = text
 	btn.process_mode = Node.PROCESS_MODE_ALWAYS
@@ -156,4 +168,14 @@ func _make_button(text: String, font_color: Color) -> Button:
 	hover.bg_color = Color(0.15, 0.06, 0.02)
 	hover.border_color = Color(1.0, 0.45, 0.0)
 	btn.add_theme_stylebox_override("hover", hover)
+
+	btn.mouse_entered.connect(func():
+		if not btn.disabled:
+			Sfx.play(HOVER_SOUND, -9.0, 0.03)
+	)
+	if sound != "none":
+		btn.pressed.connect(func():
+			Sfx.play(CANCEL_SOUND if sound == "cancel" else SELECT_SOUND, -6.0)
+		)
+
 	return btn

@@ -22,6 +22,7 @@ config/features=PackedStringArray("4.6", "Forward Plus")
 [autoload]
 
 Settings="*res://scripts/Settings.gd"
+Sfx="*res://scripts/Sfx.gd"
 Meta="*res://scripts/Meta.gd"
 GameState="*res://scripts/GameState.gd"
 HighScores="*res://scripts/HighScores.gd"

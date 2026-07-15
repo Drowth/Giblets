@@ -308,6 +308,8 @@ func _edge_pos(screen_center: Vector2) -> Vector2:
 
 # --- Bosses ---------------------------------------------------------------
 
+const BOSS_WARNING_SOUND := "res://assets/sfx/game/boss_warning.wav"
+
 func _spawn_boss() -> void:
 	if not GameState.game_active:
 		return
@@ -315,6 +317,7 @@ func _spawn_boss() -> void:
 		# Previous boss outlasted the timer (a struggling build) — don't
 		# stack a second one on top. Retry next timeout instead.
 		return
+	Sfx.play(BOSS_WARNING_SOUND, -2.0)
 	_show_boss_warning()
 	var m := _minutes()
 	# HP derived from the DPS budget (docs/BALANCE.md §4)

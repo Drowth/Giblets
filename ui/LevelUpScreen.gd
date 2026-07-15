@@ -2,6 +2,20 @@ extends Control
 
 signal upgrade_chosen
 
+const CARD_DRAW_SOUNDS := [
+	"res://assets/sfx/cards/card_draw_1.wav",
+	"res://assets/sfx/cards/card_draw_2.wav",
+	"res://assets/sfx/cards/card_draw_3.wav",
+]
+const CARD_FAN_SOUND := "res://assets/sfx/cards/card_fan.wav"
+const SELECT_SOUND := "res://assets/sfx/ui/select.wav"
+const SELECT_BIG_SOUND := "res://assets/sfx/ui/select_big.wav"
+const HOVER_SOUND := "res://assets/sfx/ui/hover.wav"
+
+const CARD_STAGGER := 0.12   # seconds between each card's draw
+const CARD_SLIDE_DURATION := 0.32
+const CARD_DROP_OFFSET := 130.0  # px below resting position cards start from
+
 func _ready() -> void:
 	add_to_group("level_up_screen")
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -48,9 +62,39 @@ func show_choices() -> void:
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vbox.add_child(row)
 
+	Sfx.play(CARD_FAN_SOUND, -6.0)
+
 	var choices := UpgradeData.get_random_choices(3)
+	var cards: Array[Button] = []
 	for upgrade: Dictionary in choices:
-		row.add_child(_make_card(upgrade))
+		var card := _make_card(upgrade)
+		card.disabled = true
+		card.modulate.a = 0.0
+		row.add_child(card)
+		cards.append(card)
+
+	# HBoxContainer only assigns real positions on the next sort pass, which
+	# is deferred — read card.position before that and it's still (0,0), so
+	# wait a frame before capturing each card's resting spot to slide from.
+	await get_tree().process_frame
+	for i in cards.size():
+		_animate_card_draw(cards[i], i)
+
+func _animate_card_draw(card: Button, index: int) -> void:
+	# Cards start disabled and transparent (set in show_choices); each one
+	# drops in from below on its own delay with a card_draw sting so the
+	# hand reads as being dealt rather than just appearing.
+	var rest_pos := card.position
+	card.position.y += CARD_DROP_OFFSET
+
+	var delay := index * CARD_STAGGER
+	var tw := card.create_tween()
+	tw.tween_interval(delay)
+	tw.tween_callback(func(): Sfx.play_random(CARD_DRAW_SOUNDS, -4.0, 0.06))
+	tw.tween_property(card, "position:y", rest_pos.y, CARD_SLIDE_DURATION) \
+		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_property(card, "modulate:a", 1.0, CARD_SLIDE_DURATION * 0.7)
+	tw.tween_callback(func(): card.disabled = false)
 
 func _make_card(upgrade: Dictionary) -> Button:
 	var rarity: String = upgrade.get("rarity", "common")
@@ -129,10 +173,16 @@ func _make_card(upgrade: Dictionary) -> Button:
 	rarity_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vbox.add_child(rarity_lbl)
 
-	btn.pressed.connect(func(): _on_card_pressed(upgrade))
+	btn.mouse_entered.connect(func():
+		if not btn.disabled:
+			Sfx.play(HOVER_SOUND, -8.0, 0.03)
+	)
+	btn.pressed.connect(func(): _on_card_pressed(upgrade, rarity))
 	return btn
 
 # ---------------------------------------------------------------------------
-func _on_card_pressed(upgrade: Dictionary) -> void:
+func _on_card_pressed(upgrade: Dictionary, rarity: String) -> void:
+	var big := rarity in ["epic", "legendary"]
+	Sfx.play(SELECT_BIG_SOUND if big else SELECT_SOUND, -3.0 if big else -5.0)
 	UpgradeData.apply_upgrade(upgrade)
 	upgrade_chosen.emit()

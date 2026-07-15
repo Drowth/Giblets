@@ -6,6 +6,12 @@ extends CanvasLayer
 
 const OPTIONS_PANEL := preload("res://ui/OptionsPanel.gd")
 
+const HOVER_SOUND       := "res://assets/sfx/ui/hover.wav"
+const SELECT_SOUND      := "res://assets/sfx/ui/select.wav"
+const CANCEL_SOUND      := "res://assets/sfx/ui/cancel.wav"
+const PAUSE_OPEN_SOUND  := "res://assets/sfx/ui/pause_open.wav"
+const PAUSE_CLOSE_SOUND := "res://assets/sfx/ui/pause_close.wav"
+
 var _showing_options: bool = false
 
 func _ready() -> void:
@@ -25,12 +31,14 @@ func _process(_delta: float) -> void:
 		_open()
 
 func _open() -> void:
+	Sfx.play(PAUSE_OPEN_SOUND, -4.0)
 	get_tree().paused = true
 	_showing_options = false
 	_rebuild()
 	show()
 
 func _resume() -> void:
+	Sfx.play(PAUSE_CLOSE_SOUND, -4.0)
 	hide()
 	if not GameState.has_pending_level_up():
 		get_tree().paused = false
@@ -74,7 +82,7 @@ func _rebuild() -> void:
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(title)
 
-	var resume_btn := _make_button("RESUME", Color(1.0, 0.45, 0.0))
+	var resume_btn := _make_button("RESUME", Color(1.0, 0.45, 0.0), "none")
 	resume_btn.pressed.connect(_resume)
 	vbox.add_child(resume_btn)
 
@@ -93,7 +101,7 @@ func _rebuild() -> void:
 	)
 	vbox.add_child(restart_btn)
 
-	var quit_btn := _make_button("QUIT TO MENU", Color(0.7, 0.55, 0.55))
+	var quit_btn := _make_button("QUIT TO MENU", Color(0.7, 0.55, 0.55), "cancel")
 	quit_btn.pressed.connect(func():
 		get_tree().paused = false
 		get_tree().change_scene_to_file("res://scenes/MainMenu.tscn")
@@ -102,7 +110,9 @@ func _rebuild() -> void:
 
 	resume_btn.grab_focus()
 
-func _make_button(label: String, font_color: Color) -> Button:
+# sound: "select" (default confirm), "cancel" (softer, for leaving/quitting),
+# or "none" (Resume plays its own PAUSE_CLOSE_SOUND from _resume() instead).
+func _make_button(label: String, font_color: Color, sound: String = "select") -> Button:
 	var btn := Button.new()
 	btn.text = label
 	btn.process_mode = Node.PROCESS_MODE_ALWAYS
@@ -123,4 +133,14 @@ func _make_button(label: String, font_color: Color) -> Button:
 	hover.bg_color = Color(0.15, 0.06, 0.02)
 	hover.border_color = Color(1.0, 0.45, 0.0)
 	btn.add_theme_stylebox_override("hover", hover)
+
+	btn.mouse_entered.connect(func():
+		if not btn.disabled:
+			Sfx.play(HOVER_SOUND, -9.0, 0.03)
+	)
+	if sound != "none":
+		btn.pressed.connect(func():
+			Sfx.play(CANCEL_SOUND if sound == "cancel" else SELECT_SOUND, -6.0)
+		)
+
 	return btn

@@ -34,6 +34,22 @@ const HITSTOP_KILL:     float = 0.025
 const HITSTOP_BOSS:     float = 0.08
 const HITSTOP_COOLDOWN: float = 0.15
 
+# Kill/hit SFX: gated the same way as hit-stop so a wave of simultaneous
+# impacts reads as a steady crunch instead of a dozen overlapping samples.
+const KILL_SFX_COOLDOWN: float = 0.05
+const HIT_SFX_COOLDOWN:  float = 0.04
+const KILL_SOUNDS := [
+	"res://assets/sfx/combat/kill_1.wav",
+	"res://assets/sfx/combat/kill_2.wav",
+]
+const HIT_SOUNDS := [
+	"res://assets/sfx/combat/hit_1.wav",
+	"res://assets/sfx/combat/hit_2.wav",
+	"res://assets/sfx/combat/hit_3.wav",
+]
+var _kill_sfx_cd: float = 0.0
+var _hit_sfx_cd: float = 0.0
+
 var score: int = 0
 var enemies_killed: int = 0
 var damage_dealt: float = 0.0  # lifetime damage this run, for death-screen DPS
@@ -144,10 +160,24 @@ func add_kill_score(enemy_xp: int) -> void:
 	if lifesteal_per_kill > 0:
 		heal(lifesteal_per_kill)
 	score_changed.emit(score)
+	if _kill_sfx_cd <= 0.0:
+		_kill_sfx_cd = KILL_SFX_COOLDOWN
+		Sfx.play_random(KILL_SOUNDS, -10.0, 0.15)
+
+# Rate-limited projectile impact SFX — called from Projectile on every hit.
+func play_hit_sfx(is_crit: bool) -> void:
+	if _hit_sfx_cd > 0.0:
+		return
+	_hit_sfx_cd = HIT_SFX_COOLDOWN
+	Sfx.play_random(HIT_SOUNDS, -16.0 if not is_crit else -10.0, 0.2)
 
 func _process(delta: float) -> void:
 	if _hitstop_cd > 0.0:
 		_hitstop_cd -= delta
+	if _kill_sfx_cd > 0.0:
+		_kill_sfx_cd -= delta
+	if _hit_sfx_cd > 0.0:
+		_hit_sfx_cd -= delta
 	if not game_active:
 		return
 	elapsed_time += delta

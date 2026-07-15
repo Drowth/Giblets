@@ -55,6 +55,7 @@ func _on_body_entered(body: Node2D) -> void:
 		body.take_hit(dmg)
 	GameState.damage_dealt += dmg
 	_pop_number(body.global_position, dmg, is_crit)
+	GameState.play_hit_sfx(is_crit)
 	GameState.screen_shake(4.0, 0.04)
 	if GameState.knockback_force > 0.0 and body.has_method("apply_knockback"):
 		body.apply_knockback(_dir, GameState.knockback_force)

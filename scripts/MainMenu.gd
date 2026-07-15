@@ -1,5 +1,12 @@
 extends Control
 
+const HOVER_SOUND      := "res://assets/sfx/ui/hover.wav"
+const SELECT_SOUND     := "res://assets/sfx/ui/select.wav"
+const SELECT_BIG_SOUND := "res://assets/sfx/ui/select_big.wav"
+const CANCEL_SOUND     := "res://assets/sfx/ui/cancel.wav"
+const DISALLOW_SOUND   := "res://assets/sfx/ui/disallow.wav"
+const COIN_SOUND       := "res://assets/sfx/game/coin.wav"
+
 var _panel: Control = null
 var _credits_tween: Tween = null
 var _crt_rect: ColorRect = null
@@ -79,6 +86,7 @@ func _show_main() -> void:
 
 	var start_btn := _make_button("START GAME", Color(1.0, 0.45, 0.0))
 	start_btn.pressed.connect(func():
+		Sfx.play(SELECT_BIG_SOUND, -2.0)
 		get_tree().change_scene_to_file("res://scenes/Main.tscn")
 	)
 	vbox.add_child(start_btn)
@@ -170,15 +178,18 @@ func _show_unlocks() -> void:
 		btn.disabled = maxed or not Meta.can_buy(id)
 		if btn.disabled:
 			btn.modulate.a = 0.6
+			if not maxed:
+				btn.mouse_entered.connect(func(): Sfx.play(DISALLOW_SOUND, -8.0))
 		btn.pressed.connect(func():
 			if Meta.buy(id):
+				Sfx.play(COIN_SOUND, -4.0)
 				_show_unlocks()
 		)
 		vbox.add_child(btn)
 
 	_add_spacer(vbox, 3)
 
-	var back_btn := _make_button("BACK", Color(0.7, 0.7, 0.7))
+	var back_btn := _make_button("BACK", Color(0.7, 0.7, 0.7), true)
 	back_btn.pressed.connect(_show_main)
 	vbox.add_child(back_btn)
 	back_btn.grab_focus()
@@ -273,7 +284,7 @@ func _show_high_scores() -> void:
 
 	_add_spacer(vbox, 4)
 
-	var back_btn := _make_button("BACK", Color(0.7, 0.7, 0.7))
+	var back_btn := _make_button("BACK", Color(0.7, 0.7, 0.7), true)
 	back_btn.pressed.connect(_show_main)
 	vbox.add_child(back_btn)
 	back_btn.grab_focus()
@@ -349,7 +360,7 @@ func _show_credits() -> void:
 	back_center.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	bg.add_child(back_center)
 
-	var back_btn := _make_button("BACK", Color(0.7, 0.7, 0.7))
+	var back_btn := _make_button("BACK", Color(0.7, 0.7, 0.7), true)
 	back_btn.pressed.connect(func():
 		_show_main()
 	)
@@ -361,11 +372,9 @@ func _add_spacer(parent: Control, height: int) -> void:
 	s.custom_minimum_size = Vector2(0, height)
 	parent.add_child(s)
 
-func _make_toggle(label: String, state: bool) -> Button:
-	var color := Color(0.25, 1.0, 0.25) if state else Color(0.6, 0.6, 0.6)
-	return _make_button("%s:  %s" % [label, "ON" if state else "OFF"], color)
-
-func _make_button(text: String, font_color: Color) -> Button:
+# is_back plays the softer cancel sound on press instead of select — used for
+# BACK buttons so backing out of a menu doesn't sound identical to confirming.
+func _make_button(text: String, font_color: Color, is_back: bool = false) -> Button:
 	var btn := Button.new()
 	btn.text = text
 	btn.custom_minimum_size = Vector2(180, 0)
@@ -387,5 +396,13 @@ func _make_button(text: String, font_color: Color) -> Button:
 	hover.bg_color = Color(0.15, 0.06, 0.02)
 	hover.border_color = Color(1.0, 0.45, 0.0)
 	btn.add_theme_stylebox_override("hover", hover)
+
+	btn.mouse_entered.connect(func():
+		if not btn.disabled:
+			Sfx.play(HOVER_SOUND, -9.0, 0.03)
+	)
+	btn.pressed.connect(func():
+		Sfx.play(CANCEL_SOUND if is_back else SELECT_SOUND, -6.0)
+	)
 
 	return btn

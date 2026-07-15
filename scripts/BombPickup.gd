@@ -1,5 +1,7 @@
 extends Node2D
 
+const EXPLOSION_SOUND := "res://assets/sfx/game/bomb_explosion.wav"
+
 var _time:   float = 0.0
 var _done:   bool  = false
 var _player: Node2D = null
@@ -38,6 +40,7 @@ func _draw() -> void:
 func _explode() -> void:
 	_done = true
 	set_process(false)
+	Sfx.play(EXPLOSION_SOUND, -1.0)
 	var main := get_tree().current_scene
 
 	# Kill every enemy instantly with fire

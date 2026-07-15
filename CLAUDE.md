@@ -31,6 +31,7 @@ none past ~26).
 **Autoloads** (registration order matters — GameState reads Meta at reset):
 
 - **Settings** (`scripts/Settings.gd`) — display/audio/input config, persisted to `user://settings.cfg` via ConfigFile. Owns volumes (creates `Music`/`SFX` buses at runtime), CRT toggles, screen-shake toggle, fullscreen, and keyboard rebinds. Emits `crt_settings_changed`. Never holds gameplay state.
+- **Sfx** (`scripts/Sfx.gd`) — central one-shot SFX player: a pool of 12 `AudioStreamPlayer`s on the `SFX` bus so several sounds (e.g. multishot kills) never cut each other off. `Sfx.play(path, volume_db, pitch_variance)`, `Sfx.play_random(paths, ...)` for hit/kill/card-draw variation, `Sfx.play_pitched(path, volume_db, pitch_scale)` for deterministic pitch (combo escalation). Every UI/game sound routes through this instead of scenes managing their own players — see "Sound" below.
 - **Meta** (`scripts/Meta.gd`) — cross-run progression: giblets currency (1 per 400 score, awarded on the death screen) and permanent small unlocks, persisted to `user://meta.save`. Feeds *base* stats into `GameState._reset()`.
 - **GameState** (`scripts/GameState.gd`) — the single source of truth for all mutable gameplay values: stats, XP, level, score, combo, and every upgrade-driven stat (`damage_mul`, `crit_chance`, `armor`, `regen_per_5s`, `explosive_pct`, `sentry_damage_mul`, …). Emits the signals that drive UI. Also owns the XP curve (`xp_required`), the DPS budget (`dps_target`), and kill-gated hit-stop (`kill_hitstop` — never call `hitstop` per hit). Never modify player stats directly on the player node.
 - **HighScores** (`scripts/HighScores.gd`) — top 10 runs to `user://highscores.save`.
@@ -63,6 +64,8 @@ none past ~26).
 **BalanceSim** (`scripts/BalanceSim.gd` + `scenes/BalanceSim.tscn`) — runs as a scene so the real autoloads load: XP, level-ups, and upgrade draws go through the shipping code; combat is an analytic horde model reading Main.gd's constants. Sim-only coefficients are marked as such at the top.
 
 ## Key Patterns
+
+**Sound** — All one-shot SFX go through the `Sfx` autoload (never build a scene-local `AudioStreamPlayer` for a one-shot). Files live under `assets/sfx/` grouped by purpose: `ui/` (hover, select, select_big, cancel, disallow, toggle_on/off, pause_open/close), `cards/` (card_draw_1-3, card_fan — LevelUpScreen only), `combat/` (hit_1-3, kill_1-2, player_hurt), `game/` (boss_warning, game_over, new_high_score, bomb_explosion, coin, combo_pop, dash). High-frequency sounds (projectile hits, kills) are rate-limited through `GameState.play_hit_sfx()` / the cooldown inside `add_kill_score()` rather than playing unconditionally, so a horde of simultaneous deaths reads as one crunch instead of a wall of overlapping samples — follow that pattern for any new frequent trigger. Menu buttons built via a shared `_make_button(text, color, sound)` helper (MainMenu, OptionsPanel, PauseScreen each have their own copy) take a `sound` param: `"select"` (default confirm), `"cancel"` (softer, for BACK/quit), or `"none"` (caller plays its own, e.g. toggles use `toggle_on`/`toggle_off` instead).
 
 **Pause-safe nodes** — When the game pauses (level-up or pause menu), any node that must keep running needs `process_mode = Node.PROCESS_MODE_ALWAYS`. The LevelUpScreen, PauseScreen, OptionsPanel, their buttons, and particle effects added during pause all set this.
 
@@ -102,6 +105,7 @@ none past ~26).
 | `ui/HUD.tscn` | `ui/HUD.gd` | Bars, combo, death screen + leaderboard |
 | `ui/UpgradeCard.tscn` | `ui/UpgradeCard.gd` | Card button (legacy; LevelUpScreen builds its own) |
 | *(no scene)* | `scripts/Settings.gd` | Autoload — settings.cfg persistence |
+| *(no scene)* | `scripts/Sfx.gd` | Autoload — pooled one-shot SFX player |
 | *(no scene)* | `scripts/Meta.gd` | Autoload — giblets + permanent unlocks |
 | *(no scene)* | `scripts/GameState.gd` | Autoload — all in-run state, XP curve, hit-stop |
 | *(no scene)* | `scripts/HighScores.gd` | Autoload — top-10 persistence |

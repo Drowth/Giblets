@@ -1,5 +1,13 @@
 extends Control
 
+const HOVER_SOUND         := "res://assets/sfx/ui/hover.wav"
+const SELECT_SOUND        := "res://assets/sfx/ui/select.wav"
+const CANCEL_SOUND        := "res://assets/sfx/ui/cancel.wav"
+const COMBO_POP_SOUND     := "res://assets/sfx/game/combo_pop.wav"
+const COIN_SOUND          := "res://assets/sfx/game/coin.wav"
+const GAME_OVER_SOUND     := "res://assets/sfx/game/game_over.wav"
+const NEW_HIGH_SCORE_SOUND := "res://assets/sfx/game/new_high_score.wav"
+
 @onready var health_bar:  ProgressBar = $TopBar/MarginContainer/HBox/HealthBarContainer/HealthBar
 @onready var health_text: Label       = $TopBar/MarginContainer/HBox/HealthBarContainer/HealthText
 @onready var xp_bar:      ProgressBar = $TopBar/MarginContainer/HBox/XPBarContainer/XPBar
@@ -38,6 +46,8 @@ func _on_combo_changed(combo: int) -> void:
 		return
 	_combo_label.visible = true
 	_combo_label.text = "COMBO x%d" % combo
+	# Pitch climbs with combo count (capped) so a long chain audibly escalates
+	Sfx.play_pitched(COMBO_POP_SOUND, -7.0, clampf(1.0 + combo * 0.02, 1.0, 1.6))
 	# Punch scale on each step
 	_combo_label.scale = Vector2(1.3, 1.3)
 	_combo_label.pivot_offset = _combo_label.size / 2.0
@@ -75,6 +85,7 @@ func _on_score_changed(new_score: int) -> void:
 	score_label.text = "%d" % new_score
 
 func show_game_over() -> void:
+	Sfx.play(GAME_OVER_SOUND, -3.0)
 	var overlay := ColorRect.new()
 	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	overlay.color = Color(0.0, 0.0, 0.0, 0.0)
@@ -132,6 +143,8 @@ func show_game_over() -> void:
 	giblets_lbl.add_theme_color_override("font_color", Color(0.95, 0.35, 0.30))
 	giblets_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vbox.add_child(giblets_lbl)
+	if giblets_earned > 0:
+		Sfx.play(COIN_SOUND, -6.0)
 
 	var sep := HSeparator.new()
 	vbox.add_child(sep)
@@ -180,6 +193,7 @@ func _build_name_entry(vbox: VBoxContainer) -> void:
 	confirm_btn.custom_minimum_size = Vector2(20, 14)
 	confirm_btn.process_mode = Node.PROCESS_MODE_ALWAYS
 	confirm_btn.add_theme_font_size_override("font_size", 7)
+	confirm_btn.mouse_entered.connect(func(): Sfx.play(HOVER_SOUND, -9.0, 0.03))
 	input_row.add_child(confirm_btn)
 
 	var submitted := false
@@ -187,6 +201,7 @@ func _build_name_entry(vbox: VBoxContainer) -> void:
 		if submitted:
 			return
 		submitted = true
+		Sfx.play(SELECT_SOUND, -5.0)
 		var raw := name_input.text.strip_edges()
 		if raw.is_empty():
 			raw = "UNKNOWN"
@@ -204,6 +219,7 @@ func _build_name_entry(vbox: VBoxContainer) -> void:
 
 func _build_leaderboard(vbox: VBoxContainer, current_rank: int) -> void:
 	if current_rank == 1:
+		Sfx.play(NEW_HIGH_SCORE_SOUND, -3.0)
 		var crown := Label.new()
 		crown.text = "★ NEW BEST RUN ★"
 		crown.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -304,7 +320,9 @@ func _build_leaderboard(vbox: VBoxContainer, current_rank: int) -> void:
 	restart_btn.custom_minimum_size = Vector2(72, 17)
 	restart_btn.process_mode = Node.PROCESS_MODE_ALWAYS
 	restart_btn.add_theme_font_size_override("font_size", 8)
+	restart_btn.mouse_entered.connect(func(): Sfx.play(HOVER_SOUND, -9.0, 0.03))
 	restart_btn.pressed.connect(func():
+		Sfx.play(SELECT_SOUND, -5.0)
 		get_tree().paused = false
 		GameState.start_game()
 		get_tree().reload_current_scene()
@@ -316,7 +334,9 @@ func _build_leaderboard(vbox: VBoxContainer, current_rank: int) -> void:
 	menu_btn.custom_minimum_size = Vector2(72, 17)
 	menu_btn.process_mode = Node.PROCESS_MODE_ALWAYS
 	menu_btn.add_theme_font_size_override("font_size", 8)
+	menu_btn.mouse_entered.connect(func(): Sfx.play(HOVER_SOUND, -9.0, 0.03))
 	menu_btn.pressed.connect(func():
+		Sfx.play(CANCEL_SOUND, -6.0)
 		get_tree().paused = false
 		get_tree().change_scene_to_file("res://scenes/MainMenu.tscn")
 	)
