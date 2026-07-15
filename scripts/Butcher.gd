@@ -44,6 +44,7 @@ var _last_dir:      Vector2 = Vector2.DOWN
 
 func _ready() -> void:
 	add_to_group("enemies")
+	add_to_group("bosses")
 	health = max_health
 	_player = get_tree().get_first_node_in_group("player")
 	sprite.texture  = load("res://assets/enemies/cyclops.png")

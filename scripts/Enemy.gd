@@ -30,6 +30,7 @@ const BOSS_SCALE  := Vector2(0.168, 0.168) # boss1.png is a large source image
 func _ready() -> void:
 	add_to_group("enemies")
 	if is_boss:
+		add_to_group("bosses")
 		_effective_scale = BOSS_SCALE
 		var boss_tex = load("res://assets/enemies/boss1.png")
 		if boss_tex:

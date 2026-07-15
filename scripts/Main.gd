@@ -311,6 +311,10 @@ func _edge_pos(screen_center: Vector2) -> Vector2:
 func _spawn_boss() -> void:
 	if not GameState.game_active:
 		return
+	if not get_tree().get_nodes_in_group("bosses").is_empty():
+		# Previous boss outlasted the timer (a struggling build) — don't
+		# stack a second one on top. Retry next timeout instead.
+		return
 	_show_boss_warning()
 	var m := _minutes()
 	# HP derived from the DPS budget (docs/BALANCE.md §4)
