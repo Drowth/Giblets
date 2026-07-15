@@ -202,6 +202,11 @@ func take_hit(dmg: int) -> void:
 func fire_kill() -> void:
 	if _dead:
 		return
+	# Fire bombs chunk bosses for 25% max HP instead of instakilling them —
+	# otherwise the bomb a boss drops trivialises the next boss.
+	if is_boss:
+		take_hit(int(max_health * 0.25))
+		return
 	_dead = true
 	set_physics_process(false)
 	$CollisionShape2D.set_deferred("disabled", true)
@@ -217,6 +222,7 @@ func _die() -> void:
 	$CollisionShape2D.set_deferred("disabled", true)
 	remove_from_group("enemies")
 	GameState.add_kill_score(xp_value)
+	GameState.kill_hitstop(is_boss)
 	sprite.position = Vector2.ZERO
 	sprite.rotation = 0.0
 	anim_player.play("death")
@@ -224,7 +230,6 @@ func _die() -> void:
 	_drop_xp()
 	if is_boss:
 		GameState.screen_shake(70.0, 0.35)
-		GameState.hitstop(0.08)
 		_spawn_bomb()
 		_vacuum_xp_orbs()
 	await get_tree().create_timer(0.45).timeout
@@ -247,7 +252,8 @@ func _drop_xp() -> void:
 	if not _xp_container:
 		return
 	if is_boss:
-		var orb_xp := GameState.xp_to_next_level * 2 / 3
+		# Boss XP ≈ 90% of a level at current progression (docs/BALANCE.md §4)
+		var orb_xp := int(GameState.xp_to_next_level * 0.3)
 		for _i in 3:
 			var orb = XP_ORB_SCENE.instantiate()
 			_xp_container.add_child(orb)

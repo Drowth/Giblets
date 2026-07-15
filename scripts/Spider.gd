@@ -192,6 +192,7 @@ func _die() -> void:
 	$CollisionShape2D.set_deferred("disabled", true)
 	remove_from_group("enemies")
 	GameState.add_kill_score(xp_value)
+	GameState.kill_hitstop(false)
 	sprite.position = Vector2.ZERO
 	sprite.rotation = 0.0
 	anim_player.play("death")

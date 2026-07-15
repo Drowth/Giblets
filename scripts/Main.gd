@@ -3,16 +3,63 @@ extends Node2D
 const ENEMY_SCENE         = preload("res://scenes/Enemy.tscn")
 const WRAITH_SCENE        = preload("res://scenes/Wraith.tscn")
 const SPIDER_SCENE        = preload("res://scenes/Spider.tscn")
+const IMP_SCENE           = preload("res://scenes/Imp.tscn")
+const BONE_CHARGER_SCENE  = preload("res://scenes/BoneCharger.tscn")
+const BUTCHER_SCENE       = preload("res://scenes/Butcher.tscn")
 const CYCLOPS_TEXTURE     = preload("res://assets/enemies/cyclops.png")
 const BONE_SENTRY_SCRIPT  = preload("res://scripts/BoneSentry.gd")
 const BLOOD_SMEARS_SCRIPT = preload("res://scripts/BloodSmears.gd")
-const OPTIONS_SCRIPT      = preload("res://ui/OptionsScreen.gd")
+const DAMAGE_NUMBERS_SCRIPT = preload("res://scripts/DamageNumbers.gd")
+const PAUSE_SCRIPT        = preload("res://ui/PauseScreen.gd")
+
+# =========================================================================
+# Balance constants — every value here is derived in docs/BALANCE.md.
+# =========================================================================
+
+# --- Spawn curve (§3): 0.5/s at start rising to ~9/s at minute 20,
+# bounded by MAX_LIVE_ENEMIES for perf and readability.
+const SPAWN_INTERVAL_START := 2.0
+const SPAWN_INTERVAL_MIN   := 0.60
+const SPAWN_INTERVAL_DECAY := 0.07   # seconds shaved per minute
+const WAVE_SIZE_GROWTH     := 0.5    # extra enemies per wave per minute
+const WAVE_SIZE_CAP        := 8
+const MAX_LIVE_ENEMIES     := 130
+
+# --- Enemy scaling (§3): HP tracks the player DPS budget so TTK stays flat
+# early and rises late; speed capped below player speed so kiting always
+# works; damage grows slowly because volume is the real threat.
+const HP_SCALE_LIN  := 0.30    # per minute
+const HP_SCALE_QUAD := 0.012   # per minute², the late-game squeeze
+const SPEED_SCALE   := 6.0     # px/s gained per minute
+const DMG_SCALE     := 0.12    # per minute
+const XP_TIME_SCALE := 0.12    # per minute — gentle, so late levels slow down
+
+# --- Post-20-minute death ramp (§3): a wall, not a slope. Runs must end.
+const OVERTIME_START := 20.0   # minutes
+const OVERTIME_QUAD  := 0.25   # (m-20)² coefficient on enemy HP and damage
+
+# --- Boss (§4): HP derived from the DPS budget to force a 15-25 s TTK for
+# an on-curve build. Butcher trades 20% HP for its charge threat.
+const BOSS_TTK_TARGET   := 20.0
+const BOSS_FOCUS_FACTOR := 0.85  # share of player fire that hits the boss
+const BUTCHER_HP_MUL    := 0.8
+const BOSS_SPEED_BASE   := 28.0
+const BOSS_SPEED_SCALE  := 8.0
+const BOSS_SPEED_CAP    := 52.0
+const BOSS_DMG_BASE     := 25.0
+
+# --- Per-archetype base stats and speed caps (§3 table).
+const DEMON_STATS   := {"hp": 25.0, "spd": 55.0, "cap": 140.0, "dmg": 10.0, "xp": 20.0}
+const SPIDER_STATS  := {"hp": 10.0, "spd": 95.0, "cap": 150.0, "dmg":  6.0, "xp":  8.0}
+const WRAITH_STATS  := {"hp": 15.0, "spd": 80.0, "cap": 165.0, "dmg":  8.0, "xp": 25.0}
+const CYCLOPS_STATS := {"hp": 75.0, "spd": 28.0, "cap":  90.0, "dmg": 12.0, "xp": 60.0}
+const IMP_STATS     := {"hp": 12.0, "spd": 70.0, "cap": 130.0, "dmg":  7.0, "xp": 14.0}
+const CHARGER_STATS := {"hp": 35.0, "spd": 40.0, "cap": 100.0, "dmg": 18.0, "xp": 30.0}
 
 var _crt_rect:            ColorRect   = null
 var _enemies_canvas:      CanvasLayer = null
-var _options_screen:      CanvasLayer = null
-var _crt_enabled:         bool        = true
-var _crt_affects_enemies: bool        = false
+var _pause_screen:        CanvasLayer = null
+var _boss_index:          int         = 0
 
 @onready var enemies_container: Node2D = $Enemies
 @onready var projectiles_container: Node2D = $Projectiles
@@ -27,7 +74,6 @@ var _crt_affects_enemies: bool        = false
 @onready var boss_timer:      Timer             = $BossTimer
 
 func _ready() -> void:
-	_setup_inputs()
 	enemies_container.add_to_group("enemies_container")
 	projectiles_container.add_to_group("projectiles_container")
 	xp_orbs_container.add_to_group("xp_orbs_container")
@@ -47,15 +93,15 @@ func _ready() -> void:
 	_setup_blood_smears()
 	_setup_crt()
 	_setup_enemies_canvas()
-	_setup_options_screen()
+	_setup_damage_numbers()
+	_setup_pause_screen()
+	Settings.crt_settings_changed.connect(_apply_crt_settings)
 
 func _setup_blood_smears() -> void:
 	var node := BLOOD_SMEARS_SCRIPT.new()
 	add_child(node)
 
 func _setup_crt() -> void:
-	_crt_enabled         = GameState.crt_enabled
-	_crt_affects_enemies = GameState.crt_affects_enemies
 	$UI.layer = 200
 	var crt_layer := CanvasLayer.new()
 	crt_layer.layer        = 128
@@ -64,7 +110,7 @@ func _setup_crt() -> void:
 	_crt_rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_crt_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_crt_rect.process_mode = Node.PROCESS_MODE_ALWAYS
-	_crt_rect.visible      = _crt_enabled
+	_crt_rect.visible      = Settings.crt_enabled
 	var shader = load("res://shaders/crt_effect.gdshader")
 	if shader:
 		var mat := ShaderMaterial.new()
@@ -76,46 +122,25 @@ func _setup_crt() -> void:
 func _setup_enemies_canvas() -> void:
 	_enemies_canvas                      = CanvasLayer.new()
 	_enemies_canvas.follow_viewport_enabled = true
-	_enemies_canvas.layer                = 150 if not _crt_affects_enemies else 50
+	_enemies_canvas.layer                = 150 if not Settings.crt_affects_enemies else 50
 	add_child(_enemies_canvas)
 	enemies_container.reparent(_enemies_canvas)
 
-func _setup_options_screen() -> void:
-	_options_screen = CanvasLayer.new()
-	_options_screen.set_script(OPTIONS_SCRIPT)
-	add_child(_options_screen)
-	_options_screen.open_requested.connect(func():
-		if GameState.game_active:
-			_open_options()
-	)
-	_options_screen.crt_changed.connect(_on_crt_changed)
-	_options_screen.crt_enemies_changed.connect(_on_crt_enemies_changed)
-	_options_screen.resumed.connect(_close_options)
+func _setup_damage_numbers() -> void:
+	# Lives on the enemies canvas so numbers render above enemy sprites
+	var dn := DAMAGE_NUMBERS_SCRIPT.new()
+	_enemies_canvas.add_child(dn)
 
-func _open_options() -> void:
-	get_tree().paused = true
-	_options_screen.open(_crt_enabled, _crt_affects_enemies)
-
-func _close_options() -> void:
-	_options_screen.hide()
-	if not GameState.has_pending_level_up():
-		get_tree().paused = false
-
-func _on_crt_changed(enabled: bool) -> void:
-	_crt_enabled = enabled
-	GameState.crt_enabled = enabled
-	_apply_crt_settings()
-
-func _on_crt_enemies_changed(enabled: bool) -> void:
-	_crt_affects_enemies = enabled
-	GameState.crt_affects_enemies = enabled
-	_apply_crt_settings()
+func _setup_pause_screen() -> void:
+	_pause_screen = CanvasLayer.new()
+	_pause_screen.set_script(PAUSE_SCRIPT)
+	add_child(_pause_screen)
 
 func _apply_crt_settings() -> void:
 	if _crt_rect:
-		_crt_rect.visible = _crt_enabled
+		_crt_rect.visible = Settings.crt_enabled
 	if _enemies_canvas:
-		var above := not _crt_enabled or not _crt_affects_enemies
+		var above := not Settings.crt_enabled or not Settings.crt_affects_enemies
 		_enemies_canvas.layer = 150 if above else 50
 
 func _start_music() -> void:
@@ -156,20 +181,39 @@ func _load_upgrade_music() -> void:
 				upgrade_music.play()
 		)
 
-func _setup_inputs() -> void:
-	var wasd := {"ui_left": KEY_A, "ui_right": KEY_D, "ui_up": KEY_W, "ui_down": KEY_S}
-	for action: String in wasd:
-		var ev := InputEventKey.new()
-		ev.keycode = wasd[action]
-		InputMap.action_add_event(action, ev)
-	if not InputMap.has_action("dash"):
-		InputMap.add_action("dash")
-	var space := InputEventKey.new()
-	space.keycode = KEY_SPACE
-	InputMap.action_add_event("dash", space)
+func _minutes() -> float:
+	return GameState.elapsed_time / 60.0
 
 func _process(_delta: float) -> void:
-	spawn_timer.wait_time = maxf(0.35, 2.0 - GameState.elapsed_time * 0.012)
+	spawn_timer.wait_time = maxf(SPAWN_INTERVAL_MIN,
+		SPAWN_INTERVAL_START - _minutes() * SPAWN_INTERVAL_DECAY)
+
+# --- Scaling helpers (docs/BALANCE.md §3) --------------------------------
+
+func _overtime_mult(m: float) -> float:
+	var over := maxf(0.0, m - OVERTIME_START)
+	return 1.0 + OVERTIME_QUAD * over * over
+
+func _hp_at(base: float, m: float) -> int:
+	return int(base * (1.0 + HP_SCALE_LIN * m + HP_SCALE_QUAD * m * m) * _overtime_mult(m))
+
+func _spd_at(base: float, cap: float, m: float) -> float:
+	return minf(base + SPEED_SCALE * m, cap)
+
+func _dmg_at(base: float, m: float) -> int:
+	return int(base * (1.0 + DMG_SCALE * m) * _overtime_mult(m))
+
+func _xp_at(base: float, m: float) -> int:
+	return int(base * (1.0 + XP_TIME_SCALE * m))
+
+func _apply_stats(enemy: Node, stats: Dictionary, m: float) -> void:
+	enemy.max_health = _hp_at(stats["hp"], m)
+	enemy.health     = enemy.max_health
+	enemy.move_speed = _spd_at(stats["spd"], stats["cap"], m)
+	enemy.damage     = _dmg_at(stats["dmg"], m)
+	enemy.xp_value   = _xp_at(stats["xp"], m)
+
+# --- Spawning -------------------------------------------------------------
 
 func _get_screen_center() -> Vector2:
 	var player := get_tree().get_first_node_in_group("player")
@@ -182,66 +226,60 @@ func _get_screen_center() -> Vector2:
 	)
 
 func _spawn_wave() -> void:
+	var live := get_tree().get_nodes_in_group("enemies").size()
+	if live >= MAX_LIVE_ENEMIES:
+		return
 	var center := _get_screen_center()
-	var count := 1 + int(GameState.elapsed_time / 18.0)
+	var m := _minutes()
+	var count: int = mini(WAVE_SIZE_CAP, 1 + int(m * WAVE_SIZE_GROWTH))
+	count = mini(count, MAX_LIVE_ENEMIES - live)
 	for _i in count:
-		_spawn_one(center)
+		_spawn_one(center, m)
 
-func _spawn_one(screen_center: Vector2) -> void:
-	var t := GameState.elapsed_time / 60.0
-	var cyclops_chance := clampf((GameState.elapsed_time - 60.0) / 120.0, 0.0, 0.25)
-	var wraith_chance  := clampf((GameState.elapsed_time - 30.0) / 60.0,  0.0, 0.50)
-	var spider_chance  := clampf(0.5 - GameState.elapsed_time / 120.0,   0.0, 0.50)
+# Mix schedule (docs/BALANCE.md §3): spiders fade out over the first 2 min,
+# wraiths ramp to 50% by 1.5 min, imps to 20% from min 2, cyclops to 25%
+# from min 1, bone chargers to 15% from min 4; remainder demons.
+func _spawn_one(screen_center: Vector2, m: float) -> void:
+	var spider_chance  := clampf(0.5 - m * 0.25,        0.0, 0.50)
+	var wraith_chance  := clampf((m - 0.5) * 0.5,       0.0, 0.35)
+	var imp_chance     := clampf((m - 2.0) * 0.1,       0.0, 0.20)
+	var cyclops_chance := clampf((m - 1.0) * 0.125,     0.0, 0.25)
+	var charger_chance := clampf((m - 4.0) * 0.075,     0.0, 0.15)
 	var roll := randf()
-	if roll < cyclops_chance:
-		_spawn_cyclops(screen_center, t)
-	elif roll < cyclops_chance + wraith_chance:
-		_spawn_wraith(screen_center, t)
-	elif roll < cyclops_chance + wraith_chance + spider_chance:
-		_spawn_spider(screen_center, t)
-	else:
-		_spawn_demon(screen_center, t)
+	var acc := spider_chance
+	if roll < acc:
+		_spawn_scene(SPIDER_SCENE, SPIDER_STATS, screen_center, m)
+		return
+	acc += wraith_chance
+	if roll < acc:
+		_spawn_scene(WRAITH_SCENE, WRAITH_STATS, screen_center, m)
+		return
+	acc += imp_chance
+	if roll < acc:
+		_spawn_scene(IMP_SCENE, IMP_STATS, screen_center, m)
+		return
+	acc += cyclops_chance
+	if roll < acc:
+		_spawn_cyclops(screen_center, m)
+		return
+	acc += charger_chance
+	if roll < acc:
+		_spawn_scene(BONE_CHARGER_SCENE, CHARGER_STATS, screen_center, m)
+		return
+	_spawn_scene(ENEMY_SCENE, DEMON_STATS, screen_center, m)
 
-func _spawn_demon(screen_center: Vector2, t: float) -> void:
-	var enemy: Node = ENEMY_SCENE.instantiate()
+func _spawn_scene(scene: PackedScene, stats: Dictionary, screen_center: Vector2, m: float) -> void:
+	var enemy: Node = scene.instantiate()
 	enemies_container.add_child(enemy)
 	enemy.global_position = _edge_pos(screen_center)
-	enemy.max_health = int(25 * (1.0 + t * 1.2))
-	enemy.health = enemy.max_health
-	enemy.move_speed = 55.0 + t * 35.0
-	enemy.damage = int(10 * (1.0 + t * 0.5))
-	enemy.xp_value = int(20 * (1.0 + t * 0.4))
+	_apply_stats(enemy, stats, m)
 
-func _spawn_spider(screen_center: Vector2, t: float) -> void:
-	var spider: Node = SPIDER_SCENE.instantiate()
-	enemies_container.add_child(spider)
-	spider.global_position = _edge_pos(screen_center)
-	spider.max_health = int(10 * (1.0 + t * 0.8))
-	spider.health     = spider.max_health
-	spider.move_speed = 95.0 + t * 30.0
-	spider.damage     = int(6 * (1.0 + t * 0.4))
-	spider.xp_value   = int(8 * (1.0 + t * 0.3))
-
-func _spawn_cyclops(screen_center: Vector2, t: float) -> void:
+func _spawn_cyclops(screen_center: Vector2, m: float) -> void:
 	var enemy: Node = ENEMY_SCENE.instantiate()
 	enemies_container.add_child(enemy)
 	enemy.sprite.texture = CYCLOPS_TEXTURE
 	enemy.global_position = _edge_pos(screen_center)
-	enemy.max_health = int(75 * (1.0 + t * 1.2))
-	enemy.health     = enemy.max_health
-	enemy.move_speed = 28.0 + t * 12.0
-	enemy.damage     = int(12 * (1.0 + t * 0.5))
-	enemy.xp_value   = int(60 * (1.0 + t * 0.4))
-
-func _spawn_wraith(screen_center: Vector2, t: float) -> void:
-	var wraith: Node = WRAITH_SCENE.instantiate()
-	enemies_container.add_child(wraith)
-	wraith.global_position = _edge_pos(screen_center)
-	wraith.max_health = int(15 * (1.0 + t * 1.0))
-	wraith.health = wraith.max_health
-	wraith.move_speed = 80.0 + t * 30.0
-	wraith.damage = int(8 * (1.0 + t * 0.5))
-	wraith.xp_value = int(25 * (1.0 + t * 0.4))
+	_apply_stats(enemy, CYCLOPS_STATS, m)
 
 func _edge_pos(screen_center: Vector2) -> Vector2:
 	var zoom := 1.0
@@ -262,17 +300,27 @@ func _edge_pos(screen_center: Vector2) -> Vector2:
 	pos.y = clampf(pos.y, 0.0, GameState.WORLD_SIZE.y)
 	return pos
 
+# --- Bosses ---------------------------------------------------------------
+
 func _spawn_boss() -> void:
 	if not GameState.game_active:
 		return
 	_show_boss_warning()
-	var t := GameState.elapsed_time / 60.0
-	var boss: Node = ENEMY_SCENE.instantiate()
-	boss.is_boss    = true
-	boss.max_health = int(500 * (1.0 + t * 0.8))
-	boss.move_speed = minf(28.0 + t * 8.0, 52.0)
-	boss.damage     = int(25 * (1.0 + t * 0.5))
-	boss.xp_value   = 500
+	var m := _minutes()
+	# HP derived from the DPS budget (docs/BALANCE.md §4)
+	var hp := int(BOSS_TTK_TARGET * GameState.dps_target(m) * BOSS_FOCUS_FACTOR * _overtime_mult(m))
+	var boss: Node
+	if _boss_index % 2 == 0:
+		boss = ENEMY_SCENE.instantiate()
+		boss.is_boss    = true
+		boss.max_health = hp
+		boss.move_speed = minf(BOSS_SPEED_BASE + m * BOSS_SPEED_SCALE, BOSS_SPEED_CAP)
+	else:
+		boss = BUTCHER_SCENE.instantiate()
+		boss.max_health = int(hp * BUTCHER_HP_MUL)
+	boss.damage   = _dmg_at(BOSS_DMG_BASE, m)
+	boss.xp_value = 500  # score value; XP drop is level-derived in the boss script
+	_boss_index += 1
 	enemies_container.add_child(boss)
 	boss.global_position = _edge_pos(_get_screen_center())
 
@@ -280,7 +328,7 @@ func _show_boss_warning() -> void:
 	var canvas := CanvasLayer.new()
 	canvas.layer = 10
 	var lbl := Label.new()
-	lbl.text = "BOSS INCOMING"
+	lbl.text = "THE BUTCHER APPROACHES" if _boss_index % 2 == 1 else "BOSS INCOMING"
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lbl.vertical_alignment   = VERTICAL_ALIGNMENT_CENTER
 	lbl.add_theme_font_size_override("font_size", 13)
@@ -293,6 +341,8 @@ func _show_boss_warning() -> void:
 	tw.tween_interval(0.6)
 	tw.tween_property(lbl, "modulate:a", 0.0, 2.0)
 	tw.tween_callback(canvas.queue_free)
+
+# --- Level-up / game-over flow ---------------------------------------------
 
 func _on_level_up() -> void:
 	if level_up_sfx and level_up_sfx.stream:
@@ -315,7 +365,8 @@ func _on_upgrade_chosen() -> void:
 		level_up_screen.show_choices()
 	else:
 		level_up_screen.hide()
-		get_tree().paused = false
+		if not (_pause_screen and _pause_screen.visible):
+			get_tree().paused = false
 		if music_player and music_player.playing:
 			var tw := music_player.create_tween()
 			tw.tween_property(music_player, "volume_db", -8.0, 0.5)

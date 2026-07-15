@@ -147,8 +147,8 @@ func _physics_process(delta: float) -> void:
 			_slow_factor = 1.0
 
 	var dir := Vector2(
-		Input.get_axis("ui_left", "ui_right"),
-		Input.get_axis("ui_up", "ui_down")
+		Input.get_axis("move_left", "move_right"),
+		Input.get_axis("move_up", "move_down")
 	)
 	var effective_speed := GameState.move_speed * _slow_factor
 	if dir != Vector2.ZERO:
@@ -197,16 +197,19 @@ func _fire() -> void:
 		return
 	var base_dir := (nearest.global_position - global_position).normalized()
 	var count := GameState.projectile_count
+	var dmg := int(GameState.projectile_damage * GameState.damage_mul)
 	for i in count:
 		var proj: Area2D = PROJECTILE_SCENE.instantiate()
 		_proj_container.add_child(proj)
 		proj.global_position = global_position
 		var angle_offset := 0.0
 		if count > 1:
-			angle_offset = lerp(-0.1, 0.1, float(i) / float(count - 1))
+			# Spread widens with projectile count so 8-shot builds fan out
+			var half_spread := 0.1 + 0.04 * (count - 2)
+			angle_offset = lerp(-half_spread, half_spread, float(i) / float(count - 1))
 		proj.launch(
 			base_dir.rotated(angle_offset),
-			GameState.projectile_damage,
+			dmg,
 			GameState.projectile_speed,
 			GameState.projectile_pierce
 		)
@@ -236,6 +239,8 @@ func _draw() -> void:
 		draw_arc(Vector2.ZERO, 22.0, 0.0, TAU, 36, Color(1.0, 0.90, 0.12, pulse), 2.0)
 
 func shake(strength: float, duration: float) -> void:
+	if not Settings.screen_shake_enabled:
+		return
 	_shake_strength = maxf(_shake_strength, strength)
 	if duration > _shake_timer:
 		_shake_timer   = duration

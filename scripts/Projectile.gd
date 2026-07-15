@@ -1,5 +1,7 @@
 extends Area2D
 
+const EXPLOSION_RADIUS := 70.0  # Hellfire Rounds AoE (docs/BALANCE.md §5)
+
 var _dir: Vector2 = Vector2.RIGHT
 var _speed: float = 400.0
 var _damage: int = 10
@@ -46,11 +48,44 @@ func _on_body_entered(body: Node2D) -> void:
 	if body in _hit_set:
 		return
 	_hit_set.append(body)
+	# Crit roll happens per hit so each pierce target rolls independently
+	var is_crit := randf() < GameState.crit_chance
+	var dmg := _damage if not is_crit else int(_damage * GameState.crit_mult)
 	if body.has_method("take_hit"):
-		body.take_hit(_damage)
+		body.take_hit(dmg)
+	GameState.damage_dealt += dmg
+	_pop_number(body.global_position, dmg, is_crit)
 	GameState.screen_shake(4.0, 0.04)
-	GameState.hitstop(0.035)
 	if GameState.knockback_force > 0.0 and body.has_method("apply_knockback"):
 		body.apply_knockback(_dir, GameState.knockback_force)
+	if GameState.explosive_pct > 0.0:
+		_explode(body)
 	if _hit_set.size() > _pierce:
 		queue_free()
+
+# Hellfire Rounds: splash a fraction of the hit onto everything nearby.
+# No chain reaction — splash never triggers further explosions.
+func _explode(center: Node2D) -> void:
+	var splash := int(_damage * GameState.explosive_pct)
+	if splash <= 0:
+		return
+	_flash_ring(center.global_position)
+	for enemy: Node2D in get_tree().get_nodes_in_group("enemies"):
+		if enemy == center or enemy in _hit_set:
+			continue
+		if enemy.global_position.distance_to(center.global_position) <= EXPLOSION_RADIUS:
+			if enemy.has_method("take_hit"):
+				enemy.take_hit(splash)
+				GameState.damage_dealt += splash
+				_pop_number(enemy.global_position, splash, false)
+
+func _flash_ring(pos: Vector2) -> void:
+	var ring := Node2D.new()
+	ring.set_script(preload("res://scripts/HellfireRing.gd"))
+	get_tree().current_scene.add_child(ring)
+	ring.global_position = pos
+
+func _pop_number(pos: Vector2, amount: int, is_crit: bool) -> void:
+	var dn := get_tree().get_first_node_in_group("damage_numbers")
+	if dn:
+		dn.pop(pos, amount, is_crit)

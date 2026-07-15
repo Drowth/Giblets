@@ -8,12 +8,41 @@ extends Control
 @onready var score_label: Label       = $TopBar/MarginContainer/HBox/ScoreLabel
 @onready var timer_label: Label       = $TopBar/MarginContainer/HBox/TimerLabel
 
+var _combo_label: Label = null
+
 func _ready() -> void:
 	GameState.health_changed.connect(_on_health_changed)
 	GameState.xp_changed.connect(_on_xp_changed)
 	GameState.level_changed.connect(_on_level_changed)
 	GameState.score_changed.connect(_on_score_changed)
+	GameState.combo_changed.connect(_on_combo_changed)
+	_setup_combo_label()
 	_refresh()
+
+func _setup_combo_label() -> void:
+	_combo_label = Label.new()
+	_combo_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	_combo_label.offset_top = 22
+	_combo_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_combo_label.add_theme_font_size_override("font_size", 9)
+	_combo_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.1))
+	_combo_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_combo_label.visible = false
+	add_child(_combo_label)
+
+const COMBO_SHOW_THRESHOLD := 5
+
+func _on_combo_changed(combo: int) -> void:
+	if combo < COMBO_SHOW_THRESHOLD:
+		_combo_label.visible = false
+		return
+	_combo_label.visible = true
+	_combo_label.text = "COMBO x%d" % combo
+	# Punch scale on each step
+	_combo_label.scale = Vector2(1.3, 1.3)
+	_combo_label.pivot_offset = _combo_label.size / 2.0
+	var tw := _combo_label.create_tween()
+	tw.tween_property(_combo_label, "scale", Vector2.ONE, 0.15)
 
 func _refresh() -> void:
 	health_bar.max_value  = GameState.player_max_health
@@ -84,15 +113,25 @@ func show_game_over() -> void:
 	vbox.add_child(score_lbl)
 
 	var t := int(GameState.elapsed_time)
+	var dps := GameState.damage_dealt / maxf(GameState.elapsed_time, 1.0)
+	var giblets_earned := Meta.earn_from_score(GameState.score)
 	var stats_lbl := Label.new()
-	stats_lbl.text = "Level %d  •  %d kills  •  %d:%02d survived" % [
-		GameState.player_level, GameState.enemies_killed, t / 60, t % 60
+	stats_lbl.text = "Level %d  •  %d kills  •  %d:%02d survived  •  %.0f DPS" % [
+		GameState.player_level, GameState.enemies_killed, t / 60, t % 60, dps
 	]
 	stats_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	stats_lbl.add_theme_font_size_override("font_size", 6)
 	stats_lbl.add_theme_color_override("font_color", Color(0.7, 0.65, 0.7))
 	stats_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vbox.add_child(stats_lbl)
+
+	var giblets_lbl := Label.new()
+	giblets_lbl.text = "+%d GIBLETS  (%d total)" % [giblets_earned, Meta.giblets]
+	giblets_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	giblets_lbl.add_theme_font_size_override("font_size", 7)
+	giblets_lbl.add_theme_color_override("font_color", Color(0.95, 0.35, 0.30))
+	giblets_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vbox.add_child(giblets_lbl)
 
 	var sep := HSeparator.new()
 	vbox.add_child(sep)
@@ -164,6 +203,20 @@ func _build_name_entry(vbox: VBoxContainer) -> void:
 	name_input.grab_focus()
 
 func _build_leaderboard(vbox: VBoxContainer, current_rank: int) -> void:
+	if current_rank == 1:
+		var crown := Label.new()
+		crown.text = "★ NEW BEST RUN ★"
+		crown.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		crown.add_theme_font_size_override("font_size", 9)
+		crown.add_theme_color_override("font_color", Color(1.0, 0.84, 0.0))
+		vbox.add_child(crown)
+	elif current_rank > 0:
+		var rank_note := Label.new()
+		rank_note.text = "HIGH SCORE — RANK %d" % current_rank
+		rank_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		rank_note.add_theme_font_size_override("font_size", 8)
+		rank_note.add_theme_color_override("font_color", Color(1.0, 0.92, 0.2))
+		vbox.add_child(rank_note)
 	var header := Label.new()
 	header.text = "— HIGH SCORES —"
 	header.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER

@@ -27,7 +27,11 @@ func _setup_crt() -> void:
 	_crt_rect = ColorRect.new()
 	_crt_rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_crt_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_crt_rect.visible = GameState.crt_enabled
+	_crt_rect.visible = Settings.crt_enabled
+	Settings.crt_settings_changed.connect(func():
+		if _crt_rect:
+			_crt_rect.visible = Settings.crt_enabled
+	)
 	var shader = load("res://shaders/crt_effect.gdshader")
 	if shader:
 		var mat := ShaderMaterial.new()
@@ -83,6 +87,10 @@ func _show_main() -> void:
 	scores_btn.pressed.connect(_show_high_scores)
 	vbox.add_child(scores_btn)
 
+	var unlocks_btn := _make_button("UNLOCKS  (%d giblets)" % Meta.giblets, Color(0.95, 0.35, 0.30))
+	unlocks_btn.pressed.connect(_show_unlocks)
+	vbox.add_child(unlocks_btn)
+
 	var options_btn := _make_button("OPTIONS", Color(0.55, 0.80, 0.55))
 	options_btn.pressed.connect(_show_options)
 	vbox.add_child(options_btn)
@@ -108,41 +116,69 @@ func _show_options() -> void:
 	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	overlay.add_child(center)
 
+	var panel: VBoxContainer = VBoxContainer.new()
+	panel.set_script(load("res://ui/OptionsPanel.gd"))
+	center.add_child(panel)
+	panel.closed.connect(_show_main)
+
+func _show_unlocks() -> void:
+	_clear_panel()
+
+	var overlay := ColorRect.new()
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	overlay.color = Color(0.0, 0.0, 0.0, 0.88)
+	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	_panel = overlay
+	_ui_layer.add_child(overlay)
+
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	overlay.add_child(center)
+
 	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 9)
+	vbox.add_theme_constant_override("separation", 4)
 	center.add_child(vbox)
 
 	var title := Label.new()
-	title.text = "OPTIONS"
-	title.add_theme_font_size_override("font_size", 16)
-	title.add_theme_color_override("font_color", Color(1.0, 0.45, 0.0))
+	title.text = "— UNLOCKS —"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 12)
+	title.add_theme_color_override("font_color", Color(0.95, 0.35, 0.30))
 	vbox.add_child(title)
 
-	_add_spacer(vbox, 2)
+	var bank := Label.new()
+	bank.text = "%d giblets" % Meta.giblets
+	bank.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	bank.add_theme_font_size_override("font_size", 8)
+	bank.add_theme_color_override("font_color", Color(1.0, 0.85, 0.1))
+	vbox.add_child(bank)
 
-	var crt_btn := _make_toggle("CRT Effect", GameState.crt_enabled)
-	crt_btn.pressed.connect(func():
-		GameState.crt_enabled = not GameState.crt_enabled
-		if _crt_rect:
-			_crt_rect.visible = GameState.crt_enabled
-		_show_options()
-	)
-	vbox.add_child(crt_btn)
+	_add_spacer(vbox, 3)
 
-	var enemies_btn := _make_toggle("CRT Enemies", GameState.crt_affects_enemies)
-	if not GameState.crt_enabled:
-		enemies_btn.disabled  = true
-		enemies_btn.modulate.a = 0.35
-	enemies_btn.pressed.connect(func():
-		GameState.crt_affects_enemies = not GameState.crt_affects_enemies
-		_show_options()
-	)
-	vbox.add_child(enemies_btn)
+	for id: String in Meta.UNLOCKS:
+		var info: Dictionary = Meta.UNLOCKS[id]
+		var r := Meta.rank(id)
+		var maxed := r >= int(info["max"])
+		var text: String
+		if maxed:
+			text = "%s  %d/%d  MAXED" % [info["name"], r, int(info["max"])]
+		else:
+			text = "%s  %d/%d  —  %s  (%d)" % [info["name"], r, int(info["max"]), info["desc"], Meta.cost(id)]
+		var color := Color(0.4, 0.9, 0.4) if maxed else (Color(1.0, 0.85, 0.1) if Meta.can_buy(id) else Color(0.5, 0.45, 0.5))
+		var btn := _make_button(text, color)
+		btn.disabled = maxed or not Meta.can_buy(id)
+		if btn.disabled:
+			btn.modulate.a = 0.6
+		btn.pressed.connect(func():
+			if Meta.buy(id):
+				_show_unlocks()
+		)
+		vbox.add_child(btn)
 
-	_add_spacer(vbox, 2)
+	_add_spacer(vbox, 3)
 
-	var back_btn := _make_button("BACK", Color(1.0, 0.45, 0.0))
+	var back_btn := _make_button("BACK", Color(0.7, 0.7, 0.7))
 	back_btn.pressed.connect(_show_main)
 	vbox.add_child(back_btn)
 	back_btn.grab_focus()
