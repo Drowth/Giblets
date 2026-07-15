@@ -2,10 +2,8 @@ extends CharacterBody2D
 
 const PROJECTILE_SCENE = preload("res://scenes/Projectile.tscn")
 
-const TEX_LVL1        = preload("res://assets/player/player.png")
-const TEX_LVL2        = preload("res://assets/player/player2.png")
-const TEX_LVL3        = preload("res://assets/player/player3.png")
 const BLOOD_DROP      = preload("res://scripts/BloodTrailDrop.gd")
+const DASH_DUST       = preload("res://scripts/DashDust.gd")
 
 const DASH_SPEED:           float = 1200.0
 const DASH_DURATION_BASE:   float = 0.20
@@ -22,6 +20,7 @@ const DASH_KNOCKBACK_FORCE: float = 550.0
 var is_invincible:    bool     = false
 var _proj_container:  Node2D   = null
 var _trail_timer:     float    = 0.0
+var _dust_timer:      float    = 0.0
 var _slow_factor:     float    = 1.0
 var _slow_timer:      float    = 0.0
 var _dash_active:     bool     = false
@@ -40,7 +39,6 @@ func _ready() -> void:
 	attack_timer.timeout.connect(_fire)
 	iframes_timer.timeout.connect(func(): is_invincible = false)
 	GameState.game_over.connect(_on_game_over)
-	GameState.level_changed.connect(_on_level_changed)
 	GameState.shake_requested.connect(shake)
 	camera.limit_right  = int(GameState.WORLD_SIZE.x)
 	camera.limit_bottom = int(GameState.WORLD_SIZE.y)
@@ -100,6 +98,8 @@ func _try_dash() -> void:
 	_slow_timer  = 0.0
 	is_invincible = true
 	iframes_timer.start(_dash_timer + 0.05)
+	for _i in 5:
+		_spawn_dash_dust()
 	queue_redraw()
 
 func _do_dash_knockback() -> void:
@@ -123,6 +123,10 @@ func _physics_process(delta: float) -> void:
 	if _dash_active:
 		_dash_timer -= delta
 		_do_dash_knockback()
+		_dust_timer -= delta
+		if _dust_timer <= 0.0:
+			_dust_timer = 0.03
+			_spawn_dash_dust()
 		if _dash_timer <= 0.0:
 			_dash_active = false
 		velocity = _dash_dir * DASH_SPEED
@@ -266,18 +270,19 @@ func _flash_damage() -> void:
 		modulate = Color.WHITE
 		await get_tree().create_timer(0.07).timeout
 
+func _spawn_dash_dust() -> void:
+	var dust := Node2D.new()
+	dust.set_script(DASH_DUST)
+	get_parent().add_child(dust)
+	dust.global_position = global_position + Vector2(randf_range(-6, 6), randf_range(8, 14))
+	dust.setup(_dash_dir)
+
 func _leave_blood_trail() -> void:
 	var drop := Node2D.new()
 	drop.set_script(BLOOD_DROP)
 	get_parent().add_child(drop)
 	drop.global_position = global_position + Vector2(randf_range(-5, 5), randf_range(3, 9))
 	drop.setup(randf_range(1.5, 3.5), Color(randf_range(0.35, 0.6), 0.0, 0.0, 1.0))
-
-func _on_level_changed(new_level: int) -> void:
-	if new_level >= 4:
-		sprite.texture = TEX_LVL3
-	elif new_level >= 2:
-		sprite.texture = TEX_LVL2
 
 func _on_game_over() -> void:
 	set_physics_process(false)

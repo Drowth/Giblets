@@ -227,8 +227,6 @@ func _die() -> void:
 		GameState.hitstop(0.08)
 		_spawn_bomb()
 		_vacuum_xp_orbs()
-	else:
-		GameState.screen_shake(14.0, 0.10)
 	await get_tree().create_timer(0.45).timeout
 	queue_free()
 
