@@ -1,9 +1,11 @@
-# Giblets — Balance Model (Phase 2)
+# Giblets — Balance Model (Phase 2, tuned in Phase 4)
 
 All symbols: `m` = elapsed minutes, `L` = player level. Every formula below is
 implemented as a named constant or function; the constant name is given in
-`code`. First-pass values here were then tuned by `scripts/BalanceSim.gd`
-(Phase 4) — this document records the **final tuned values** and the reasoning.
+`code`. First-pass values were tuned against `scripts/BalanceSim.gd` (Phase 4),
+a 100-run headless simulation that exercises the *real* XP curve and upgrade
+draw code with an analytic horde-combat model. This document records the
+**final tuned values**.
 
 Design targets:
 
@@ -14,6 +16,36 @@ Design targets:
 - Boss dies in **15–25 s** of focused fire from an on-curve build; an off-curve
   build gets overrun while whittling it.
 
+## Phase 4 simulation result (final tuning pass)
+
+`scripts/BalanceSim.gd`, 100 runs, mid-skill pick model (70% take the
+strongest of 3 cards, 30% take a random one — a pure "always optimal" model
+produced unrealistic near-immortal runs; a pure coin-flip model produced
+unrealistic bimodal early-death clustering):
+
+```
+Death-time distribution (minutes):
+  0-5     0
+  5-8     19  ███████████████████
+  8-12    15  ███████████████
+  12-16   16  ████████████████
+  16-20   33  █████████████████████████████████
+  20-25   17  █████████████████
+  25-30    0
+  survived 0
+Median death: 17.1 min   p10: 6.8   p90: 20.8
+Avg final level: 30.2
+Boss kills: 857   avg TTK: 11.4s   median: 9.5s   p90: 20.5s
+```
+
+Zero runs die before minute 5, zero survive past 25, and 66% of runs end in
+the 12–25 window with a clear peak at 16–20 — the overtime wall (§3) catches
+the long tail exactly as designed. The 5–12 bucket (34%) is runs that drew
+weak early upgrades under the mid-skill model; this is treated as intended
+variance, not a bug — some runs *should* end early. Re-run BalanceSim after
+any constant change; a shifted distribution is the signal something needs
+re-tuning.
+
 ---
 
 ## 1. Player DPS budget
@@ -21,23 +53,27 @@ Design targets:
 The anchor everything else is tuned against. Base kit: 15 damage × 1.5 shots/s
 = **22.5 DPS at minute 0** (`GameState` base stats).
 
-Per level the player picks 1 of 3 upgrades. With the rarity weights of §5 the
-expected pick is worth ≈ **+22 % of current power**, of which ≈ 55 % of picks
-are offensive. Expected DPS multiplier per level ≈ 1.12. With the level curve
-of §2 (L(m) below) that compounds to the **target DPS curve**:
+Per level the player picks 1 of 3 upgrades; because upgrades stack
+multiplicatively (fire rate × damage × crit × projectile count), effective
+DPS compounds **exponentially** with level, not quadratically — the original
+quadratic anchor undershot BalanceSim's measured player DPS by 4–20× at
+minute 10+. The anchor is now:
 
 ```
-dps_target(m) = 30 · (1 + 0.16·m)²          # GameState.dps_target()
+dps_target(m) = DPS_BASE · e^(DPS_GROWTH_EXP · m) = 24 · e^(0.24·m)   # GameState.dps_target()
 ```
+
+`DPS_BASE = 24` matches the actual starting kit (15 dmg × 1.5/s = 22.5, plus
+a whisker of headroom for meta unlocks). This curve is used **only to size
+boss HP** (§4) — it intentionally sits below the median player's *actual*
+horde DPS (which includes multishot/pierce/sentry area effects the
+single-target formula excludes), so bosses stay killable without the boss
+fight also being the run's difficulty check — the horde is.
 
 | minute | 1 | 5 | 10 | 15 | 20 |
 |---|---|---|---|---|---|
-| target DPS | 40 | 97 | 203 | 350 | 537 |
-| sanity check: 22.5 · 1.12^L(m) | 35 (L4) | 79 (L11) | 216 (L17)* | 380 (L22)* | 470 (L27)* |
-
-\* multishot/pierce/sentries add area DPS on top of single-target — the check
-row is single-target only, which is why it sits slightly under the target at
-the end. Close enough to anchor enemy HP.
+| dps_target (boss sizing) | 30 | 80 | 265 | 878 | 2916 |
+| BalanceSim measured horde DPS (median build) | 44 | 154 | 754 | 2875 | 17536 |
 
 ---
 
@@ -133,15 +169,18 @@ wraiths ramp 0→50 % over minutes 0.5–1.5; imps ramp to 20 % from minute 2;
 cyclops ramp to 25 % from minute 1; bone chargers ramp to 15 % from minute 4;
 remainder demons.
 
-**Post-20 death ramp** (`OVERTIME_START = 20 min`, `OVERTIME_QUAD = 0.25`):
+**Post-18 death ramp** (`OVERTIME_START = 18 min`, `OVERTIME_QUAD = 0.60`):
 
 ```
-overtime_mult(m) = 1 + 0.25·max(0, m−20)²        # multiplies enemy HP and dmg
+overtime_mult(m) = 1 + 0.60·max(0, m−18)²        # multiplies enemy HP and dmg
 ```
 
-+25 % at 21 min, ×2 at 22, ×5 at 24, ×10 at 26. Runs end. This is deliberately
-a wall, not a slope — the fantasy is "I finally got overwhelmed", not "the
-numbers quietly got unfair".
++60 % at 19 min, ×3.4 at 20, ×9.4 at 22, ×20 at 24. Runs end by ~minute 24
+even for a strongly-built player. This is deliberately a wall, not a slope —
+the fantasy is "I finally got overwhelmed", not "the numbers quietly got
+unfair". BalanceSim confirms: 0 of 100 runs survived past minute 25, and the
+wall produces the intended late peak in the death-time distribution (16–20
+minutes) rather than an indefinite plateau.
 
 ---
 

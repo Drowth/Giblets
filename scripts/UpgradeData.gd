@@ -43,7 +43,7 @@ const ALL_UPGRADES: Array[Dictionary] = [
 		"id": "fire_rate_1", "name": "Frenzy", "rarity": "common", "power": 14,
 		"description": "Fire 20% faster",
 		"color": Color(1.0, 0.6, 0.1),
-		"stat": "fire_rate", "multiplier": 1.2
+		"stat": "fire_rate", "multiplier": 1.2, "max_stacks": 4
 	},
 	{
 		"id": "proj_speed_1", "name": "Velocity", "rarity": "common", "power": 8,
@@ -92,7 +92,7 @@ const ALL_UPGRADES: Array[Dictionary] = [
 		"id": "fire_rate_2", "name": "Berserker", "rarity": "uncommon", "power": 21,
 		"description": "Fire 30% faster",
 		"color": Color(1.0, 0.4, 0.0),
-		"stat": "fire_rate", "multiplier": 1.3
+		"stat": "fire_rate", "multiplier": 1.3, "max_stacks": 3
 	},
 	{
 		"id": "max_hp_2", "name": "Undying Flesh", "rarity": "uncommon", "power": 18,
@@ -153,7 +153,7 @@ const ALL_UPGRADES: Array[Dictionary] = [
 		"id": "damage_mul_1", "name": "Heavy Calibre", "rarity": "rare", "power": 35,
 		"description": "All damage increased by 35%",
 		"color": Color(0.8, 0.1, 0.1),
-		"stat": "damage_mul", "multiplier": 1.35
+		"stat": "damage_mul", "multiplier": 1.35, "max_stacks": 3
 	},
 	{
 		"id": "crit_2", "name": "Executioner", "rarity": "rare", "power": 30,

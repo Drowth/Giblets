@@ -20,9 +20,12 @@ const XP_LINEAR: int = 45
 const XP_QUAD:   int = 22
 
 # --- Player DPS budget (docs/BALANCE.md §1) -------------------------------
-# Anchor curve that enemy HP and boss HP are derived from.
-const DPS_BASE:   float = 30.0
-const DPS_GROWTH: float = 0.16  # per minute, squared growth
+# Anchor curve that boss HP is derived from. DPS_BASE matches the actual
+# starting kit (15 dmg × 1.5/s = 22.5) plus meta unlocks. Growth is
+# exponential because upgrade picks compound multiplicatively — BalanceSim
+# measured ~3.3× effective DPS per 5 minutes for a median build.
+const DPS_BASE:       float = 24.0
+const DPS_GROWTH_EXP: float = 0.24  # per minute, e^(k·m) growth
 
 # --- Hit-stop budget (docs/BALANCE.md §7) ---------------------------------
 # Kill-gated with a cooldown so multishot volleys read as one impact instead
@@ -129,8 +132,7 @@ func xp_required(level: int) -> int:
 
 # Expected player DPS at `minutes` into a run with average upgrade luck.
 func dps_target(minutes: float) -> float:
-	var g := 1.0 + DPS_GROWTH * minutes
-	return DPS_BASE * g * g
+	return DPS_BASE * exp(DPS_GROWTH_EXP * minutes)
 
 func add_kill_score(enemy_xp: int) -> void:
 	enemies_killed += 1

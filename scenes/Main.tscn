@@ -57,5 +57,5 @@ wait_time = 2.0
 autostart = true
 
 [node name="BossTimer" type="Timer" parent="."]
-wait_time = 60.0
+wait_time = 90.0
 autostart = true

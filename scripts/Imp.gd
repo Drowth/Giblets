@@ -17,8 +17,10 @@ const BOLT_SCRIPT  = preload("res://scripts/ImpBolt.gd")
 
 const PREFERRED_RANGE := 180.0   # tries to hover here
 const RANGE_SLACK     := 40.0    # deadband so it strafes instead of jittering
-const SPRITE_SCALE    := Vector2(2.2, 2.2)
+const TARGET_HEIGHT   := 36.0    # world px — demon_basic.png is 500x500, scale is computed
 const IMP_TINT        := Color(1.0, 0.55, 0.25)
+
+var _sprite_scale: Vector2 = Vector2.ONE
 
 var _player:        Node2D  = null
 var _contact_timer: float   = 0.0
@@ -36,7 +38,9 @@ func _ready() -> void:
 	add_to_group("enemies")
 	health = max_health
 	_player = get_tree().get_first_node_in_group("player")
-	sprite.scale    = SPRITE_SCALE
+	var s := TARGET_HEIGHT / sprite.texture.get_size().y
+	_sprite_scale   = Vector2(s, s)
+	sprite.scale    = _sprite_scale
 	sprite.modulate = IMP_TINT
 	_bolt_timer  = randf_range(1.5, 3.0)
 	_strafe_sign = 1.0 if randf() < 0.5 else -1.0
@@ -74,7 +78,7 @@ func _build_animations() -> void:
 	var ts := death.add_track(Animation.TYPE_VALUE)
 	death.track_set_path(ts, "Sprite2D:scale")
 	death.value_track_set_update_mode(ts, Animation.UPDATE_CONTINUOUS)
-	death.track_insert_key(ts, 0.0, SPRITE_SCALE)
+	death.track_insert_key(ts, 0.0, _sprite_scale)
 	death.track_insert_key(ts, 0.4, Vector2.ZERO)
 	var tr := death.add_track(Animation.TYPE_VALUE)
 	death.track_set_path(tr, "Sprite2D:rotation")

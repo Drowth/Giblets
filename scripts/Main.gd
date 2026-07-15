@@ -21,25 +21,30 @@ const PAUSE_SCRIPT        = preload("res://ui/PauseScreen.gd")
 const SPAWN_INTERVAL_START := 2.0
 const SPAWN_INTERVAL_MIN   := 0.60
 const SPAWN_INTERVAL_DECAY := 0.07   # seconds shaved per minute
-const WAVE_SIZE_GROWTH     := 0.5    # extra enemies per wave per minute
+const WAVE_SIZE_GROWTH     := 0.35   # extra enemies per wave per minute
 const WAVE_SIZE_CAP        := 8
 const MAX_LIVE_ENEMIES     := 130
 
 # --- Enemy scaling (§3): HP tracks the player DPS budget so TTK stays flat
 # early and rises late; speed capped below player speed so kiting always
 # works; damage grows slowly because volume is the real threat.
-const HP_SCALE_LIN  := 0.30    # per minute
-const HP_SCALE_QUAD := 0.012   # per minute², the late-game squeeze
+const HP_SCALE_LIN  := 0.12    # per minute
+const HP_SCALE_QUAD := 0.020   # per minute², the mid/late squeeze — puts
+                               # influx/DPS parity near minute 15 for a
+                               # median build (BalanceSim-tuned)
 const SPEED_SCALE   := 6.0     # px/s gained per minute
-const DMG_SCALE     := 0.12    # per minute
-const XP_TIME_SCALE := 0.12    # per minute — gentle, so late levels slow down
+const DMG_SCALE     := 0.18    # per minute
+const XP_TIME_SCALE := 0.15    # per minute — keeps mid-game leveling on pace
+                               # while the quadratic requirement still wins late
 
 # --- Post-20-minute death ramp (§3): a wall, not a slope. Runs must end.
-const OVERTIME_START := 20.0   # minutes
-const OVERTIME_QUAD  := 0.25   # (m-20)² coefficient on enemy HP and damage
+const OVERTIME_START := 18.0   # minutes
+const OVERTIME_QUAD  := 0.60   # (m-18)² coefficient on enemy HP and damage —
+                               # steep enough to end even snowballed builds by ~24
 
 # --- Boss (§4): HP derived from the DPS budget to force a 15-25 s TTK for
 # an on-curve build. Butcher trades 20% HP for its charge threat.
+const BOSS_INTERVAL     := 90.0  # seconds between bosses (mirrored in Main.tscn BossTimer)
 const BOSS_TTK_TARGET   := 20.0
 const BOSS_FOCUS_FACTOR := 0.85  # share of player fire that hits the boss
 const BUTCHER_HP_MUL    := 0.8
@@ -237,13 +242,14 @@ func _spawn_wave() -> void:
 		_spawn_one(center, m)
 
 # Mix schedule (docs/BALANCE.md §3): spiders fade out over the first 2 min,
-# wraiths ramp to 50% by 1.5 min, imps to 20% from min 2, cyclops to 25%
-# from min 1, bone chargers to 15% from min 4; remainder demons.
+# wraiths ramp to 35% by 1.2 min, imps to 20% from min 2, cyclops to 12%
+# from min 3 (its 75 base HP dominates average HP — keep it occasional),
+# bone chargers to 15% from min 4; remainder demons.
 func _spawn_one(screen_center: Vector2, m: float) -> void:
 	var spider_chance  := clampf(0.5 - m * 0.25,        0.0, 0.50)
 	var wraith_chance  := clampf((m - 0.5) * 0.5,       0.0, 0.35)
 	var imp_chance     := clampf((m - 2.0) * 0.1,       0.0, 0.20)
-	var cyclops_chance := clampf((m - 1.0) * 0.125,     0.0, 0.25)
+	var cyclops_chance := clampf((m - 3.0) * 0.04,      0.0, 0.12)
 	var charger_chance := clampf((m - 4.0) * 0.075,     0.0, 0.15)
 	var roll := randf()
 	var acc := spider_chance
