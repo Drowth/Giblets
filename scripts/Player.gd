@@ -12,6 +12,7 @@ const DASH_KNOCKBACK_BASE:  float = 65.0
 const DASH_KNOCKBACK_FORCE: float = 550.0
 
 const DASH_SOUND  := "res://assets/sfx/game/dash.wav"
+const WOOSH_SOUND := "res://assets/sfx/combat/woosh.wav"
 const HURT_SOUND  := "res://assets/sfx/combat/player_hurt.wav"
 
 @onready var attack_timer:  Timer            = $AttackTimer
@@ -136,6 +137,7 @@ func _try_dash() -> void:
 	is_invincible = true
 	iframes_timer.start(_dash_timer + 0.05)
 	Sfx.play(DASH_SOUND, -8.0, 0.08)
+	Sfx.play(WOOSH_SOUND, -6.0, 0.08)
 	for _i in 5:
 		_spawn_dash_dust()
 	# Grave Robber: the dash rips every XP orb on the field loose
