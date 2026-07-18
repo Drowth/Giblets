@@ -49,12 +49,13 @@ const CHARACTERS: Dictionary = {
 		"name": "The Necromancer",
 		"desc": "Weak of arm, strong of servant.",
 		"cost": 140,
-		"sprite_path": "res://assets/player/player2.png",
-		"sprite_scale": 0.12,
-		"deltas": {"projectile_damage": -2},
-		"passive": {"sentry_count": 1},
-		"passive_desc": "Starts with a Bone Sentry",
-		"draw_bias": {"sentry_1": DRAW_BIAS_WEIGHT, "leg_summon": DRAW_BIAS_WEIGHT},
+		"animated": true,
+		"sprite_path": "res://assets/player/necromancer/idle/S/001.png",  # select-card portrait
+		"sprite_scale": 0.7,    # 128px HD frames, matches the Reaper set
+		"deltas": {"projectile_damage": -4},
+		"passive": {"sentry_count": 1, "dash_damage_pct": 0.5},
+		"passive_desc": "Starts with a Bone Sentry. Dashing through enemies deals 50% weapon damage; a killing dash-hit binds the soul into a temporary Bone Sentry for 12s (max 3 active)",
+		"draw_bias": {"sentry_1": DRAW_BIAS_WEIGHT, "leg_summon": DRAW_BIAS_WEIGHT, "dash_damage": DRAW_BIAS_WEIGHT},
 	},
 	"vampire": {
 		"name": "The Vampire",
@@ -62,9 +63,9 @@ const CHARACTERS: Dictionary = {
 		"cost": 220,
 		"sprite_path": "res://assets/player/player3.png",
 		"sprite_scale": 0.12,
-		"deltas": {"max_health": 20, "move_speed": -10},
-		"passive": {"lifesteal_per_kill": 1},
-		"passive_desc": "Heals 1 HP on every kill",
+		"deltas": {"max_health": 20, "move_speed": -15},
+		"passive": {"lifesteal_per_kill": 1, "exsanguinate_enabled": 1.0},
+		"passive_desc": "Heals 1 HP on every kill. Every 8th kill detonates a blood nova, dealing AoE damage and healing 25% of the damage dealt",
 		"draw_bias": {"lifesteal_1": DRAW_BIAS_WEIGHT, "regen_1": DRAW_BIAS_WEIGHT, "leg_sustain": DRAW_BIAS_WEIGHT},
 	},
 }

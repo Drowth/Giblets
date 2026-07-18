@@ -55,6 +55,7 @@ func _ready() -> void:
 	GameState.game_over.connect(_on_game_over)
 	GameState.shake_requested.connect(shake)
 	GameState.second_wind_triggered.connect(_on_second_wind)
+	GameState.blood_nova_requested.connect(_blood_nova)
 	camera.limit_right  = int(GameState.WORLD_SIZE.x)
 	camera.limit_bottom = int(GameState.WORLD_SIZE.y)
 	camera.zoom = Vector2(0.3, 0.3)
@@ -173,9 +174,22 @@ func _do_dash_knockback() -> void:
 				var dn := get_tree().get_first_node_in_group("damage_numbers")
 				if dn:
 					dn.pop(enemy.global_position, dmg, false)
+				# Bone Harvest (Necromancer): a killing dash-hit binds the soul
+				# into a temporary Bone Sentry
+				if Meta.selected_character == "necromancer" and enemy.get("_dead") and not enemy.is_in_group("bosses"):
+					_spawn_temp_sentry()
 		# Every frame: push overlapping enemies physically outside contact radius
 		if d < contact_dist and d > 0.01:
 			enemy.global_position += dir * (contact_dist - d)
+
+# Bone Harvest: spawn a Bone Sentry that self-expires after 12s (BoneSentry's
+# own lifespan countdown), capped so the board can't fill up with turrets.
+func _spawn_temp_sentry() -> void:
+	if GameState.temp_sentry_count >= 3:
+		return
+	GameState.sentry_count += 1
+	GameState.temp_sentry_count += 1
+	GameState.temp_sentry_summoned.emit(12.0)
 
 func _physics_process(delta: float) -> void:
 	# Dash active — override all movement
@@ -355,31 +369,54 @@ func take_damage(amount: int) -> void:
 	if GameState.game_active and GameState.hurt_nova_level > 0:
 		_hurt_nova()
 
+# Shared AoE-nova routine: damage + knockback everything in radius, an
+# optional heal from a fraction of the damage dealt, and the expanding-ring
+# visual. Used by Tantrum (retaliatory, on taking a hit) and Exsanguinate
+# (proactive, every 8th kill) — same shape, different trigger/numbers/tint.
+func _nova(radius: float, dmg: int, knockback: float, heal_pct: float,
+		outer_color: Color, inner_color: Color) -> void:
+	var dn := get_tree().get_first_node_in_group("damage_numbers")
+	var total_dealt := 0
+	for enemy: Node2D in get_tree().get_nodes_in_group("enemies"):
+		var diff := enemy.global_position - global_position
+		var d := diff.length()
+		if d > radius:
+			continue
+		var dir := diff.normalized() if d > 0.01 else _last_move_dir
+		if enemy.has_method("apply_knockback"):
+			enemy.apply_knockback(dir, knockback)
+		if enemy.has_method("take_hit"):
+			enemy.take_hit(dmg)
+			GameState.damage_dealt += dmg
+			total_dealt += dmg
+			if dn:
+				dn.pop(enemy.global_position, dmg, false)
+	if heal_pct > 0.0 and total_dealt > 0:
+		GameState.heal(int(total_dealt * heal_pct))
+	var ring := Node2D.new()
+	ring.set_script(preload("res://scripts/HellfireRing.gd"))
+	get_tree().current_scene.add_child(ring)
+	ring.global_position = global_position
+	ring.set_colors(outer_color, inner_color)
+	shake(45.0, 0.25)
+
 # Tantrum: taking a hit detonates a retaliatory nova around the player.
 const HURT_NOVA_RADIUS    := 130.0
 const HURT_NOVA_KNOCKBACK := 420.0
 func _hurt_nova() -> void:
 	var dmg := int(GameState.projectile_damage * GameState.attack_damage_mul()
 		* 1.5 * GameState.hurt_nova_level)
-	var dn := get_tree().get_first_node_in_group("damage_numbers")
-	for enemy: Node2D in get_tree().get_nodes_in_group("enemies"):
-		var diff := enemy.global_position - global_position
-		var d := diff.length()
-		if d > HURT_NOVA_RADIUS:
-			continue
-		var dir := diff.normalized() if d > 0.01 else _last_move_dir
-		if enemy.has_method("apply_knockback"):
-			enemy.apply_knockback(dir, HURT_NOVA_KNOCKBACK)
-		if enemy.has_method("take_hit"):
-			enemy.take_hit(dmg)
-			GameState.damage_dealt += dmg
-			if dn:
-				dn.pop(enemy.global_position, dmg, false)
-	var ring := Node2D.new()
-	ring.set_script(preload("res://scripts/HellfireRing.gd"))
-	get_tree().current_scene.add_child(ring)
-	ring.global_position = global_position
-	shake(45.0, 0.25)
+	_nova(HURT_NOVA_RADIUS, dmg, HURT_NOVA_KNOCKBACK, 0.0,
+		Color(1.0, 0.45, 0.0), Color(1.0, 0.75, 0.1))
+
+# Exsanguinate (Vampire): every 8th kill detonates a blood nova, healing a
+# quarter of the damage it deals.
+const BLOOD_NOVA_RADIUS    := 130.0
+const BLOOD_NOVA_KNOCKBACK := 420.0
+func _blood_nova() -> void:
+	var dmg := int(GameState.projectile_damage * GameState.attack_damage_mul() * 1.2)
+	_nova(BLOOD_NOVA_RADIUS, dmg, BLOOD_NOVA_KNOCKBACK, 0.25,
+		Color(0.75, 0.05, 0.05), Color(0.4, 0.0, 0.05))
 
 # Corpse tint: full dark red for the static sprite; softer for the animated
 # wizard so the Die animation stays readable.
@@ -411,6 +448,8 @@ func _apply_character_visuals() -> void:
 		# Use appropriate animation set based on character
 		if Meta.selected_character == "reaper":
 			anim_sprite.sprite_frames = WizardFrames.get_reaper_frames()
+		elif Meta.selected_character == "necromancer":
+			anim_sprite.sprite_frames = WizardFrames.get_necromancer_frames()
 		else:
 			anim_sprite.sprite_frames = WizardFrames.get_frames()
 		anim_sprite.scale = Vector2(s, s)

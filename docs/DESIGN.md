@@ -118,8 +118,10 @@ the median death from ~17 to ~20 min and the §3 overtime wall still ends
 every run by 25.
 
 **Characters** — stat-delta + starting-passive variants. The free default is
-The Wizard (animated 8-directional HD sprite set; save id remains `ghoul`);
-the three unlockables use static sprites. Passives (starting
+The Wizard (animated 8-directional HD sprite set; save id remains `ghoul`).
+The Reaper and Necromancer are also animated 8-directional HD sets (Reaper:
+DarkLord pack; Necromancer: Witchdoctor pack); the Vampire still uses a
+static sprite. Passives (starting
 crit / sentry / lifesteal) are the *only* sanctioned benders of the
 additive-only rule: each is paid for with a negative delta and validated
 per-character in BalanceSim against the same death-time envelope. The ×3

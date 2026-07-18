@@ -10,8 +10,9 @@ class_name WizardFrames
 
 const DIRECTIONS: Array[String] = ["E", "N", "NE", "NW", "S", "SE", "SW", "W"]
 
-const WIZARD_PATH := "res://assets/player/wizard"
-const REAPER_PATH := "res://assets/player/reaper"
+const WIZARD_PATH      := "res://assets/player/wizard"
+const REAPER_PATH      := "res://assets/player/reaper"
+const NECROMANCER_PATH := "res://assets/player/necromancer"
 # anim -> [fps, loops]
 const WIZARD_ANIMS: Dictionary = {
 	"idle": [12.0, true],
@@ -26,6 +27,16 @@ const REAPER_ANIMS: Dictionary = {
 	"die":  [34.0, false],
 	"hurt": [60.0, false],
 }
+# Witchdoctor pack (D:\Assets\...\8Witchdoctor): idle/run/die 15 frames each,
+# hurt (TakeDamage) 18 frames, roll (Rolling) 15 frames — same 128px HD frame
+# size and 8-direction layout as the Reaper set, so timings mirror it.
+const NECROMANCER_ANIMS: Dictionary = {
+	"idle": [10.0, true],
+	"run":  [16.0, true],
+	"roll": [30.0, false],  # dash uses the Witchdoctor's Rolling animation
+	"die":  [34.0, false],
+	"hurt": [60.0, false],
+}
 
 static var _cache: Dictionary = {}  # base_path -> SpriteFrames
 
@@ -34,6 +45,9 @@ static func get_frames() -> SpriteFrames:
 
 static func get_reaper_frames() -> SpriteFrames:
 	return build(REAPER_PATH, REAPER_ANIMS)
+
+static func get_necromancer_frames() -> SpriteFrames:
+	return build(NECROMANCER_PATH, NECROMANCER_ANIMS)
 
 static func build(base_path: String, anims: Dictionary) -> SpriteFrames:
 	if _cache.has(base_path):
