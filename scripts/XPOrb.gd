@@ -52,6 +52,8 @@ func _process(delta: float) -> void:
 		dist = global_position.distance_to(_player.global_position)
 	if dist < _get_radius() + 7.0:
 		GameState.add_xp(xp_value)
+		if GameState.orb_heal > 0:  # Bone Broth
+			GameState.heal(GameState.orb_heal)
 		var sfx = get_tree().get_first_node_in_group("xp_pickup_sfx")
 		if sfx:
 			sfx.play()

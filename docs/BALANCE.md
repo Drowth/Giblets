@@ -103,7 +103,7 @@ than early ones, the opposite of a difficulty curve):
 xp(enemy, m) = base_xp · (1 + 0.12·m)
 ```
 
-base_xp: spider 8, demon 20, wraith 25, cyclops 60, imp 14, bonecharger 30
+base_xp: spider 8, brawler 20, wraith 25, cyclops 60, imp 14, bonecharger 30
 (§4). Mix-weighted average ≈ 19 early, drifting up as cyclops enter.
 
 Income ≈ kill_rate · x̄p. Kill rate is the smaller of spawn rate (§3) and
@@ -153,13 +153,13 @@ dmg(m) = base_dmg · (1 + DMG_SCALE·m)                          # 0.12
 | enemy | base HP | base spd (cap) | base dmg | base XP | role |
 |---|---|---|---|---|---|
 | Spider | 10 | 95 (150) | 6 | 8 | early swarm, web-slow |
-| Demon | 25 | 55 (140) | 10 | 20 | baseline chaser |
+| Brawler | 25 | 55 (140) | 10 | 20 | baseline chaser |
 | Wraith | 15 | 80 (165) | 8 | 25 | fast luner, drift |
 | Cyclops | 75 | 28 (90) | 12 | 60 | tank wall |
 | Imp (new) | 12 | 70 (130) | 7 (bolt) | 14 | ranged pressure |
 | Bone Charger (new) | 35 | 40 (100) | 18 | 30 | telegraphed charge + death burst |
 
-Worked example, Demon: HP 25 → 130 (m10) → 295 (m20). Against the DPS budget
+Worked example, Brawler: HP 25 → 130 (m10) → 295 (m20). Against the DPS budget
 that is 0.6 s → 0.55 s of single-target focus — near constant — but arrival
 *rate* triples, so total incoming HP/s crosses the player's kill capacity
 around minute 12–14.
@@ -167,7 +167,7 @@ around minute 12–14.
 **Mix schedule** (`Main._spawn_one`): spiders 50 %→0 over the first 2 min;
 wraiths ramp 0→50 % over minutes 0.5–1.5; imps ramp to 20 % from minute 2;
 cyclops ramp to 25 % from minute 1; bone chargers ramp to 15 % from minute 4;
-remainder demons.
+remainder brawlers.
 
 **Post-18 death ramp** (`OVERTIME_START = 18 min`, `OVERTIME_QUAD = 0.60`):
 
@@ -206,7 +206,7 @@ speed cap chase logic for Skull King) plus adds is what actually kills them.
 BOSS_FOCUS_FACTOR = 0.85 because ~15 % of the player's fire inevitably leaks
 into the horde.
 
-Two bosses alternate on the 60 s `BossTimer` (§Phase 3c): **Skull King**
+Two bosses alternate on the 90 s `BossTimer` (§Phase 3c): **Skull King**
 (current: melee chase, XP fountain on death) and **Butcher** (new: circles at
 mid-range, periodic telegraphed cross-arena charge; forces sustained
 repositioning instead of simple kiting). Same HP formula, Butcher trades 20 %
@@ -238,8 +238,9 @@ Expected value per pick ≈ 0.45·12 + 0.30·20 + 0.15·32 + 0.07·48 + 0.03·75
 roll rarity by weight, then uniform among that rarity's not-yet-maxed entries
 (re-roll rarity if a tier's pool is exhausted).
 
-Full pool (32 entries, four archetypes: **crit/burst**, **area**, **summons**,
-**sustain**). P shows the score that placed each in its band.
+Full pool (42 entries, four archetypes: **crit/burst**, **area**, **summons**,
+**sustain**, plus a **quirk** batch that trades raw stats for mechanics).
+P shows the score that placed each in its band.
 
 | id | name | rarity | effect | P |
 |---|---|---|---|---|
@@ -259,6 +260,8 @@ Full pool (32 entries, four archetypes: **crit/burst**, **area**, **summons**,
 | dash_cd_1 | Afterburn | uncommon | −20 % dash cooldown | 17 |
 | regen_1 | Regrowth | uncommon | +2 HP / 5 s | 19 |
 | crit_1 | Keen Edge | uncommon | +8 % crit chance (crits ×2) | 20 |
+| rear_shot | Eyes in the Back | uncommon | bonus shot fired backwards each volley | 20 |
+| orb_heal | Bone Broth | uncommon | XP orbs heal 1 HP (×2 stacks) | 18 |
 | multishot_1 | Twin Barrage | rare | +1 projectile | 35 |
 | pierce_1 | Impale | rare | +1 pierce | 30 |
 | knockback_1 | Soul Repel | rare | +220 knockback | 26 |
@@ -266,35 +269,118 @@ Full pool (32 entries, four archetypes: **crit/burst**, **area**, **summons**,
 | damage_mul_1 | Heavy Calibre | rare | +35 % damage (multiplicative) | 35 |
 | crit_2 | Executioner | rare | +12 % crit chance | 30 |
 | lifesteal_1 | Vampiric Strikes | rare | heal 1 HP per kill | 28 |
+| dash_vacuum | Grave Robber | rare | dash magnetizes every XP orb | 26 |
+| kill_speed | Adrenal Gland | rare | kills grant +40 % speed, 1.5 s | 28 |
+| hurt_nova | Tantrum | rare | taking a hit detonates a nova (×2 stacks) | 30 |
+| extra_choice | Third Eye | rare | level-ups offer a 4th card | 32 |
 | sentry_1 | Osseous Sentinel | epic | summon a Bone Sentry (max 3) | 45 |
 | dash_knock_1 | Shockwave | epic | dash knockback ×2 | 42 |
 | multishot_2 | Overload | epic | +2 projectiles | 60 |
 | fire_rate_3 | Adrenaline | epic | +50 % fire rate | 45 |
 | max_hp_3 | Titan's Vigor | epic | +80 max HP, +2 armor | 44 |
+| dash_damage | Phase Ripper | epic | dash deals 150 % weapon dmg | 42 |
+| ricochet | Wishbone | epic | +2 ricochets to fresh targets (×2 stacks) | 50 |
+| bloodlust | Red Mist | epic | +0.5 %/combo damage, cap +50 % | 45 |
 | leg_crit | Deathmark | legendary | +25 % crit, crits ×3 | 85 |
 | leg_aoe | Hellfire Rounds | legendary | hits explode: 60 % dmg, r=70 | 90 |
 | leg_summon | Bone Legion | legendary | +2 sentries, sentries full dmg | 80 |
 | leg_sustain | Gorefeast | legendary | heal 3 HP/kill, +25 % move spd | 75 |
+| leg_faustian | Faustian Bargain | legendary | damage ×2, max HP halved | 85 |
 
 Stacking caps (`max_stacks` in the dict): sentries cap at 3 (+2 more from Bone
-Legion), armor at 8, crit chance at 60 %, projectile count at 8, pierce at 6.
-Repeatables (damage, fire rate, HP…) are uncapped — their marginal value
-naturally decays.
+Legion), crit chance at 60 %, projectile count at 8, pierce at 6, and the
+quirks Tantrum / Wishbone / Bone Broth at ×2 each. Fire-rate tiers are
+per-entry capped; flat repeatables (damage, HP…) are uncapped — their marginal
+value naturally decays.
 
 Sentry damage = 50 % of player damage (100 % with Bone Legion), firing at
 player fire rate: one sentry ≈ +50 % single-target DPS, which is why the epic
-costs a level *and* an orbit slot and stays fair at P≈45.
+costs a level *and* an orbit slot and stays fair at P≈45. Sentry shots use the
+shared Projectile, so they crit and ricochet (Wishbone) like player shots —
+but they deliberately exclude Red Mist's combo frenzy (`damage_mul`, not
+`attack_damage_mul()`): sentries fire your *weapon*, not your *rage*.
 
 ---
 
-## 6. Meta-progression (kept modest by design)
+## 6. Meta-progression (talents, characters, roulette)
 
-Currency: **Giblets** (icon already in `assets/pickups/giblet.png`), earned
-1 per 400 score at death (`GIBLETS_PER_SCORE`). Unlocks are permanent, small,
-and *additive to base stats only* — they shift the first two minutes, not the
-curve: +10 max HP (×3 ranks), +1 damage (×3), +5 % move speed (×2), +10 %
-magnet (×2), +5 % XP (×2). Full board ≈ one free early level-up per category;
-total cost ≈ 25 good runs. Persisted in `user://meta.save` beside HighScores.
+> Note: some constants quoted in §1–4 have drifted from the shipping code
+> (`HP_SCALE_LIN` 0.12, `DMG_SCALE` 0.18, `XP_TIME_SCALE` 0.15,
+> `WAVE_SIZE_GROWTH` 0.35, `BOSS_INTERVAL` 90 s). Trust `Main.gd` /
+> `GameState.gd`; a doc-sync pass is pending. This section IS current.
+
+### Earning (Meta.compute_earn)
+
+Currency: **Giblets**, awarded at death, itemized on the death screen:
+
+```
+giblets = min(score / 100000, 10)        # GIBLETS_PER_SCORE, SCORE_GIBLETS_CAP
+        + bosses_killed × 1              # BOSS_KILL_GIBLETS
+        + floor(minutes / 2) × 1         # SURVIVAL_GIBLETS
+```
+
+Score compounds explosively late-game (kills × level × combo), so its
+component is *capped* — bosses and survival minutes carry the steady income.
+BalanceSim yield report: fresh account ≈ 21/run (p10 7), maxed endgame ≈
+31/run. In-run upgrades **never** persist across runs; only giblets, talents,
+characters and roulette pool unlocks do.
+
+### Talent tree (Meta.TALENTS)
+
+3 branches × 3 tiers; tier 2 needs 3 points spent in the branch, tier 3 needs
+6\. All talents are additive to base-stat floors — nothing on the
+multiplicative DPS path. Cost per rank = `base × (rank+1)`.
+
+| Branch | Tier | Talent | Per rank | Max | Base cost | Total |
+|---|---|---|---|---|---|---|
+| Offense | 1 | Sharp Fangs | +1 damage | 4 | 6 | 60 |
+| Offense | 1 | Swift Bolts | +25 proj speed | 3 | 5 | 30 |
+| Offense | 2 | Heavy Rounds | +8 knockback | 3 | 8 | 48 |
+| Offense | 3 | Grim Arsenal | free common at start | 1 | 40 | 40 |
+| Defense | 1 | Thick Skin | +10 max HP | 4 | 5 | 50 |
+| Defense | 1 | Stone Hide | +1 armor | 2 | 12 | 36 |
+| Defense | 2 | Slow Mend | +0.5 HP/5 s | 3 | 8 | 48 |
+| Defense | 3 | Death Defiance | survive 1 killing blow | 1 | 45 | 45 |
+| Utility | 1 | Long Stride | +5 % move speed | 3 | 5 | 30 |
+| Utility | 1 | Greedy Soul | +10 % magnet | 3 | 4 | 24 |
+| Utility | 2 | Old Bones | +5 % XP | 3 | 8 | 48 |
+| Utility | 2 | Nimble | −5 % dash cooldown | 2 | 8 | 24 |
+| Utility | 3 | Head Start | start at level 2 | 1 | 40 | 40 |
+
+Full board **523 giblets**. The five pre-talent unlock ids (`hp, damage,
+speed, magnet, xp`) are reused verbatim, so v1 saves migrate losslessly.
+
+### Characters (CharacterData.gd)
+
+Additive stat deltas + one starting passive + a ×3 draw-weight bias on
+signature upgrades (flavor, not raw power). Buying a character also unlocks
+its signature upgrades into the level-up rotation.
+
+| Character | Cost | Deltas | Passive | Biased draws |
+|---|---|---|---|---|
+| The Ghoul | free | — | — | — |
+| The Reaper | 80 | −20 HP | 10 % starting crit | crit_1/2, Deathmark |
+| The Necromancer | 140 | −2 damage | starts with a sentry | sentry_1, Bone Legion |
+| The Vampire | 220 | +20 HP, −10 speed | +1 lifesteal/kill | lifesteal, regen, Gorefeast |
+
+Total spend (talents + roster) = **963 giblets ≈ 38–40 good runs**.
+
+### End-of-run upgrade roulette
+
+14 upgrades start locked out of the level-up rotation (`locked_by_default` in
+UpgradeData): all five legendaries + Osseous Sentinel, Overload, Executioner,
+Vampiric Strikes, Shockwave, Third Eye, Phase Ripper, Wishbone, Red Mist.
+One rarity-weighted spin per run *if* the run survived 5:00 or killed a boss;
+the winner joins the rotation permanently.
+A fresh account therefore plays a thinner pool — BalanceSim baseline median
+11.3 min vs 19.9 maxed — which is the intended progression arc.
+
+### Sim acceptance (re-run after ANY change here)
+
+BalanceSim runs 5 profiles (baseline / maxed / maxed×3 characters). Current:
+baseline median 11.3 (p10 6.9), maxed 19.8–19.9 across all characters,
+p90 ≤ 21.4, **zero runs past 25 in every profile** — the §3 overtime wall
+holds. Persisted in `user://meta.save` (v2) beside HighScores.
 
 ## 7. Hit-stop and juice budget (why numbers, not vibes)
 

@@ -133,6 +133,8 @@ func _make_button(label: String, font_color: Color, sound: String = "select") ->
 	hover.bg_color = Color(0.15, 0.06, 0.02)
 	hover.border_color = Color(1.0, 0.45, 0.0)
 	btn.add_theme_stylebox_override("hover", hover)
+	# Gamepad/keyboard focus must be visible
+	btn.add_theme_stylebox_override("focus", hover)
 
 	btn.mouse_entered.connect(func():
 		if not btn.disabled:

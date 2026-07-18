@@ -15,6 +15,9 @@ script = ExtResource("1")
 texture = ExtResource("2")
 scale = Vector2(3.75, 3.75)
 
+[node name="AnimSprite" type="AnimatedSprite2D" parent="."]
+visible = false
+
 [node name="AnimationPlayer" type="AnimationPlayer" parent="."]
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]

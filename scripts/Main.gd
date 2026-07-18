@@ -6,7 +6,6 @@ const SPIDER_SCENE        = preload("res://scenes/Spider.tscn")
 const IMP_SCENE           = preload("res://scenes/Imp.tscn")
 const BONE_CHARGER_SCENE  = preload("res://scenes/BoneCharger.tscn")
 const BUTCHER_SCENE       = preload("res://scenes/Butcher.tscn")
-const CYCLOPS_TEXTURE     = preload("res://assets/enemies/cyclops.png")
 const BONE_SENTRY_SCRIPT  = preload("res://scripts/BoneSentry.gd")
 const BLOOD_SMEARS_SCRIPT = preload("res://scripts/BloodSmears.gd")
 const DAMAGE_NUMBERS_SCRIPT = preload("res://scripts/DamageNumbers.gd")
@@ -54,7 +53,7 @@ const BOSS_SPEED_CAP    := 52.0
 const BOSS_DMG_BASE     := 25.0
 
 # --- Per-archetype base stats and speed caps (§3 table).
-const DEMON_STATS   := {"hp": 25.0, "spd": 55.0, "cap": 140.0, "dmg": 10.0, "xp": 20.0}
+const BRAWLER_STATS := {"hp": 25.0, "spd": 55.0, "cap": 140.0, "dmg": 10.0, "xp": 20.0}
 const SPIDER_STATS  := {"hp": 10.0, "spd": 95.0, "cap": 150.0, "dmg":  6.0, "xp":  8.0}
 const WRAITH_STATS  := {"hp": 15.0, "spd": 80.0, "cap": 165.0, "dmg":  8.0, "xp": 25.0}
 const CYCLOPS_STATS := {"hp": 75.0, "spd": 28.0, "cap":  90.0, "dmg": 12.0, "xp": 60.0}
@@ -72,6 +71,7 @@ var _boss_index:          int         = 0
 @onready var spawn_timer: Timer = $SpawnTimer
 @onready var level_up_screen = $UI/LevelUpScreen
 @onready var hud = $UI/HUD
+@onready var loading_screen = $UI/LoadingScreen
 @onready var music_player:    AudioStreamPlayer = $MusicPlayer
 @onready var xp_pickup_sfx:   AudioStreamPlayer = $XPPickupSFX
 @onready var level_up_sfx:    AudioStreamPlayer = $LevelUpSFX
@@ -88,6 +88,12 @@ func _ready() -> void:
 	GameState.game_over.connect(_on_game_over)
 	GameState.sentry_summoned.connect(_on_sentry_summoned)
 	GameState.start_game()
+	# Fade to loading screen before heavy asset loading, then fade out once complete
+	if loading_screen:
+		await loading_screen.fade_in()
+	_prebuild_enemy_animations()
+	if loading_screen:
+		await loading_screen.fade_out()
 	_start_music()
 	_load_xp_sfx()
 	_load_level_up_sfx()
@@ -101,6 +107,151 @@ func _ready() -> void:
 	_setup_damage_numbers()
 	_setup_pause_screen()
 	Settings.crt_settings_changed.connect(_apply_crt_settings)
+	_apply_meta_start_conditions.call_deferred()
+	if OS.get_environment("GIBLETS_SOAK") == "1":
+		_start_soak_mode()
+
+# --- Soak harness: headless physics/AI regression test (found the grounded-
+# motion-mode NaN bug — see motion_mode in the enemy _ready()s).
+# Run: $env:GIBLETS_SOAK='1'; godot --path . --headless res://scenes/Main.tscn
+# God-modes the player, runs 5x speed, auto-picks level-ups, and reports any
+# physics body whose position/velocity goes non-finite or runs away; a clean
+# pass reaches 12 game-minutes at the live-enemy cap with zero warnings.
+var _soak_offenders := 0
+func _start_soak_mode() -> void:
+	Engine.time_scale = 5.0
+	var watchdog := Timer.new()
+	watchdog.wait_time = 0.25
+	watchdog.autostart = true
+	watchdog.process_mode = Node.PROCESS_MODE_ALWAYS  # must survive level-up pause
+	add_child(watchdog)
+	watchdog.timeout.connect(_soak_tick)
+	print("SOAK: started")
+
+func _soak_tick() -> void:
+	Engine.time_scale = 5.0  # hitstop restores to 1.0; push back to soak speed
+	GameState.player_health = GameState.player_max_health
+	# Auto-resolve level-ups so the run keeps flowing
+	while GameState.has_pending_level_up():
+		var choices := UpgradeData.get_random_choices(3)
+		if not choices.is_empty():
+			UpgradeData.apply_upgrade(choices.pick_random())
+		GameState.consume_level_up()
+	if level_up_screen and level_up_screen.visible:
+		level_up_screen.hide()
+	if get_tree().paused:
+		get_tree().paused = false
+	var m := GameState.elapsed_time / 60.0
+	if int(GameState.elapsed_time) % 60 < 1:
+		print("SOAK: minute %.1f  live=%d" % [m, get_tree().get_nodes_in_group("enemies").size()])
+	_soak_check_body(get_tree().get_first_node_in_group("player"))
+	for e in get_tree().get_nodes_in_group("enemies"):
+		_soak_check_body(e)
+	if m >= 12.0:
+		print("SOAK: reached 12 min clean, quitting")
+		get_tree().quit()
+
+func _soak_check_body(body: Node) -> void:
+	if not body or not body is CharacterBody2D:
+		return
+	var pos: Vector2 = body.global_position
+	var vel: Vector2 = body.velocity
+	var bad := not pos.is_finite() or not vel.is_finite() \
+		or absf(pos.x) > 1.0e7 or absf(pos.y) > 1.0e7 \
+		or absf(vel.x) > 1.0e7 or absf(vel.y) > 1.0e7
+	if bad:
+		_soak_offenders += 1
+		var script_path: String = body.get_script().resource_path if body.get_script() else "<none>"
+		print("SOAK OFFENDER #%d at %.1f min: %s (%s) pos=%s vel=%s" % [
+			_soak_offenders, GameState.elapsed_time / 60.0, body.name, script_path, str(pos), str(vel)])
+		if body.has_method("apply_knockback"):
+			print("  knockback_vel=", body.get("_knockback_vel"))
+		if _soak_offenders >= 5:
+			print("SOAK: enough offenders, quitting")
+			get_tree().quit()
+# --- END soak harness
+
+# Permanent meta start-of-run effects (docs/BALANCE.md §6): the selected
+# character's starting sentries, Grim Arsenal's free common upgrade, and Head
+# Start's instant level 2 (deferred so the level-up screen is ready to show).
+func _prebuild_enemy_animations() -> void:
+	# Pre-build all enemy animation frames to cache them before gameplay starts.
+	# This prevents freezes when new monster types spawn for the first time,
+	# since WizardFrames.build() loads texture files synchronously on the main thread.
+	const BRAWLER_ANIMS: Dictionary = {
+		"idle": [10.0, true],
+		"run":  [16.0, true],
+		"die":  [34.0, false],
+		"hurt": [60.0, false],
+	}
+	const CYCLOPS_ANIMS: Dictionary = {
+		"idle": [10.0, true],
+		"run":  [16.0, true],
+		"die":  [34.0, false],
+		"hurt": [60.0, false],
+	}
+	const BOSS_ANIMS: Dictionary = {
+		"idle":   [10.0, true],
+		"run":    [16.0, true],
+		"die":    [34.0, false],
+		"hurt":   [60.0, false],
+		"attack": [30.0, false],
+	}
+	const WRAITH_ANIMS: Dictionary = {
+		"idle": [10.0, true],
+		"run":  [16.0, true],
+		"die":  [25.0, false],
+		"hurt": [60.0, false],
+	}
+	const IMP_ANIMS: Dictionary = {
+		"idle": [10.0, true],
+		"run":  [16.0, true],
+		"die":  [34.0, false],
+		"hurt": [60.0, false],
+	}
+	const CHARGER_ANIMS: Dictionary = {
+		"idle":   [10.0, true],
+		"run":    [16.0, true],
+		"windup": [20.0, false],
+		"charge": [20.0, true],
+		"die":    [30.0, false],
+		"hurt":   [72.0, false],
+	}
+	const BUTCHER_ANIMS: Dictionary = {
+		"idle":   [10.0, true],
+		"run":    [16.0, true],
+		"windup": [15.0, false],
+		"charge": [20.0, true],
+		"die":    [30.0, false],
+		"hurt":   [60.0, false],
+	}
+	const SPIDER_ANIMS: Dictionary = {
+		"idle": [10.0, true],
+		"run":  [16.0, true],
+		"die":  [34.0, false],
+		"hurt": [60.0, false],
+	}
+	WizardFrames.build("res://assets/enemies/brawler", BRAWLER_ANIMS)
+	WizardFrames.build("res://assets/enemies/cyclops", CYCLOPS_ANIMS)
+	WizardFrames.build("res://assets/enemies/boss", BOSS_ANIMS)
+	WizardFrames.build("res://assets/enemies/wraith", WRAITH_ANIMS)
+	WizardFrames.build("res://assets/enemies/imp", IMP_ANIMS)
+	WizardFrames.build("res://assets/enemies/bonecharger", CHARGER_ANIMS)
+	WizardFrames.build("res://assets/enemies/butcher", BUTCHER_ANIMS)
+	WizardFrames.build("res://assets/enemies/spider", SPIDER_ANIMS)
+	# Pre-build player animations too (Wizard and Reaper)
+	WizardFrames.build("res://assets/player/wizard", WizardFrames.WIZARD_ANIMS)
+	WizardFrames.build("res://assets/player/reaper", WizardFrames.REAPER_ANIMS)
+
+func _apply_meta_start_conditions() -> void:
+	for i in GameState.sentry_count:
+		_on_sentry_summoned(i)  # explicit slot: sentry_count is already final
+	if Meta.has_free_draw():
+		var u := UpgradeData.get_random_by_rarity("common")
+		if not u.is_empty():
+			UpgradeData.apply_upgrade(u)
+	if Meta.has_head_start():
+		GameState.add_xp(GameState.xp_to_next_level)
 
 func _setup_blood_smears() -> void:
 	var node := BLOOD_SMEARS_SCRIPT.new()
@@ -244,7 +395,7 @@ func _spawn_wave() -> void:
 # Mix schedule (docs/BALANCE.md §3): spiders fade out over the first 2 min,
 # wraiths ramp to 35% by 1.2 min, imps to 20% from min 2, cyclops to 12%
 # from min 3 (its 75 base HP dominates average HP — keep it occasional),
-# bone chargers to 15% from min 4; remainder demons.
+# bone chargers to 15% from min 4; remainder brawlers.
 func _spawn_one(screen_center: Vector2, m: float) -> void:
 	var spider_chance  := clampf(0.5 - m * 0.25,        0.0, 0.50)
 	var wraith_chance  := clampf((m - 0.5) * 0.5,       0.0, 0.35)
@@ -272,7 +423,7 @@ func _spawn_one(screen_center: Vector2, m: float) -> void:
 	if roll < acc:
 		_spawn_scene(BONE_CHARGER_SCENE, CHARGER_STATS, screen_center, m)
 		return
-	_spawn_scene(ENEMY_SCENE, DEMON_STATS, screen_center, m)
+	_spawn_scene(ENEMY_SCENE, BRAWLER_STATS, screen_center, m)
 
 func _spawn_scene(scene: PackedScene, stats: Dictionary, screen_center: Vector2, m: float) -> void:
 	var enemy: Node = scene.instantiate()
@@ -282,8 +433,8 @@ func _spawn_scene(scene: PackedScene, stats: Dictionary, screen_center: Vector2,
 
 func _spawn_cyclops(screen_center: Vector2, m: float) -> void:
 	var enemy: Node = ENEMY_SCENE.instantiate()
+	enemy.is_cyclops = true
 	enemies_container.add_child(enemy)
-	enemy.sprite.texture = CYCLOPS_TEXTURE
 	enemy.global_position = _edge_pos(screen_center)
 	_apply_stats(enemy, CYCLOPS_STATS, m)
 
@@ -384,12 +535,13 @@ func _on_upgrade_chosen() -> void:
 			var tw := music_player.create_tween()
 			tw.tween_property(music_player, "volume_db", -8.0, 0.5)
 
-func _on_sentry_summoned() -> void:
+func _on_sentry_summoned(orbit_index: int = -1) -> void:
 	var player := get_tree().get_first_node_in_group("player")
 	if not player:
 		return
 	var sentry := Node2D.new()
 	sentry.set_script(BONE_SENTRY_SCRIPT)
+	sentry.orbit_index = orbit_index
 	add_child(sentry)
 	sentry.global_position = player.global_position
 

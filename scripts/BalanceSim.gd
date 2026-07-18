@@ -3,7 +3,7 @@ extends Node
 # Headless balance simulation harness (Phase 4, docs/BALANCE.md).
 #
 # Run:
-#   "D:\GoDot\Godot_v4.6.3-stable_win64.exe" --path . --headless res://scenes/BalanceSim.tscn
+#   "C:\Claude\REPOS\Games\Giblets\Godot_v4.7-stable_win64.exe" --path . --headless res://scenes/BalanceSim.tscn
 #
 # Simulates N synthetic runs at SIM_DT resolution. Progression is REAL code:
 # GameState.add_xp / xp_required / upgrade_stacks and UpgradeData's weighted
@@ -20,6 +20,9 @@ const SIM_LIMIT := 30.0 * 60.0   # give up and call it "survived" at 30 min
 const PROJ_EFF      := 0.65  # marginal horde value of each extra projectile
 const PIERCE_EFF    := 0.45  # marginal horde value of each pierce
 const HELLFIRE_EFF  := 0.80  # horde uptime of the explosion splash
+const RICOCHET_EFF  := 0.35  # marginal horde value of each Wishbone bounce
+const REAR_SHOT_EFF := 0.25  # horde value of the backwards bonus shot
+const BLOODLUST_AVG := 0.30  # average Bloodlust uptime bonus (cap is +0.50)
 # Calibrated against a live playtest (player at full HP, L10, minute 4 with
 # sub-20 live enemies): kiting + dash knockback make small hordes nearly
 # harmless. Contact damage only lands once the screen saturates — below
@@ -34,26 +37,98 @@ const BOSS_HIT_SAT  := 0.10  # additional hits/s at full horde saturation
 
 var MAIN := preload("res://scripts/Main.gd")
 
+# Sim-only: approximates the in-run combo multiplier for score accrual
+# (builds fast in hordes, capped ×2 — see GameState.add_kill_score).
+const SIM_COMBO_MUL := 1.5
+
 func _ready() -> void:
+	# Meta A/B profiles: fields are set directly (never through buy()/earn(),
+	# which would persist to user://meta.save) and restored afterwards.
+	var snapshot := _snapshot_meta()
+	var profiles: Array[Dictionary] = [
+		{"label": "BASELINE — no talents, starting pool, Ghoul", "maxed": false, "character": "ghoul"},
+		{"label": "MAXED TALENTS — full pool, Ghoul",            "maxed": true,  "character": "ghoul"},
+		{"label": "MAXED TALENTS — full pool, Reaper",           "maxed": true,  "character": "reaper"},
+		{"label": "MAXED TALENTS — full pool, Necromancer",      "maxed": true,  "character": "necromancer"},
+		{"label": "MAXED TALENTS — full pool, Vampire",          "maxed": true,  "character": "vampire"},
+	]
+	for profile in profiles:
+		_apply_profile(profile)
+		_run_batch(profile["label"])
+	_restore_meta(snapshot)
+	get_tree().quit()
+
+func _snapshot_meta() -> Dictionary:
+	return {
+		"giblets": Meta.giblets,
+		"ranks": Meta.ranks.duplicate(),
+		"selected_character": Meta.selected_character,
+		"unlocked_characters": Meta.unlocked_characters.duplicate(),
+		"unlocked_upgrades": Meta.unlocked_upgrades.duplicate(),
+	}
+
+func _restore_meta(s: Dictionary) -> void:
+	Meta.giblets = s["giblets"]
+	Meta.ranks = s["ranks"]
+	Meta.selected_character = s["selected_character"]
+	Meta.unlocked_characters = s["unlocked_characters"]
+	Meta.unlocked_upgrades = s["unlocked_upgrades"]
+
+func _apply_profile(profile: Dictionary) -> void:
+	if profile["maxed"]:
+		var all_ranks := {}
+		for id: String in Meta.TALENTS:
+			all_ranks[id] = int(Meta.TALENTS[id]["max"])
+		Meta.ranks = all_ranks
+		var full_pool: Array = []
+		for u in UpgradeData.ALL_UPGRADES:
+			if u.get("locked_by_default", false):
+				full_pool.append(u["id"])
+		Meta.unlocked_upgrades = full_pool
+	else:
+		Meta.ranks = {}
+		Meta.unlocked_upgrades = []
+	Meta.unlocked_characters = CharacterData.CHARACTERS.keys()
+	Meta.selected_character = profile["character"]
+
+func _run_batch(label: String) -> void:
 	var death_times: Array[float] = []
 	var final_levels: Array[int] = []
 	var final_dps: Array[float] = []
 	var boss_ttks: Array[float] = []
+	var giblet_yields: Array[int] = []
 	var dps_samples := {1: [], 5: [], 10: [], 15: [], 20: []}
 
+	print("\n########  %s  ########" % label)
 	for run in RUNS:
 		var result := _simulate_run(dps_samples, boss_ttks)
 		death_times.append(result["time"])
 		final_levels.append(result["level"])
 		final_dps.append(result["dps"])
-		if (run + 1) % 10 == 0:
+		giblet_yields.append(result["giblets"])
+		if (run + 1) % 20 == 0:
 			print("... %d/%d runs done" % [run + 1, RUNS])
 
 	_report(death_times, final_levels, final_dps, boss_ttks, dps_samples)
-	get_tree().quit()
+	giblet_yields.sort()
+	var g_sum := 0
+	for g in giblet_yields: g_sum += g
+	print("Giblet yield/run: median %d   p10 %d   p90 %d   avg %.1f" % [
+		giblet_yields[giblet_yields.size() / 2],
+		giblet_yields[giblet_yields.size() / 10],
+		giblet_yields[giblet_yields.size() * 9 / 10],
+		float(g_sum) / giblet_yields.size()])
 
 func _simulate_run(dps_samples: Dictionary, boss_ttks: Array[float]) -> Dictionary:
 	GameState.start_game()
+	# Start-of-run talent hooks normally applied by Main._ready()
+	if Meta.has_free_draw():
+		var u := UpgradeData.get_random_by_rarity("common")
+		if not u.is_empty():
+			UpgradeData.apply_upgrade(u)
+	if Meta.has_head_start():
+		GameState.add_xp(GameState.xp_to_next_level)
+		_consume_level_ups()
 	var t := 0.0
 	var sampled := {}
 	var live := 0.0
@@ -74,6 +149,9 @@ func _simulate_run(dps_samples: Dictionary, boss_ttks: Array[float]) -> Dictiona
 			* (1.0 + PROJ_EFF * (GameState.projectile_count - 1)) \
 			* (1.0 + PIERCE_EFF * GameState.projectile_pierce) \
 			* (1.0 + GameState.explosive_pct * HELLFIRE_EFF) \
+			* (1.0 + RICOCHET_EFF * GameState.ricochet_bounces) \
+			* (1.0 + (REAR_SHOT_EFF if GameState.rear_shot else 0.0)) \
+			* (1.0 + (BLOODLUST_AVG if GameState.bloodlust else 0.0)) \
 			+ single * GameState.sentry_count * GameState.sentry_damage_mul
 
 		# --- enemy population
@@ -101,6 +179,9 @@ func _simulate_run(dps_samples: Dictionary, boss_ttks: Array[float]) -> Dictiona
 				boss_ttks.append(t - boss_start)
 				GameState.add_xp(int(GameState.xp_to_next_level * 0.9))
 				GameState.enemies_killed += 1
+				GameState.bosses_killed += 1
+				# Boss score value is 500 (Main.gd boss spawn)
+				GameState.score += int(500 * GameState.player_level * SIM_COMBO_MUL)
 				# Boss drops a fire bomb: picking it up wipes the live horde
 				live = 0.0
 
@@ -114,6 +195,8 @@ func _simulate_run(dps_samples: Dictionary, boss_ttks: Array[float]) -> Dictiona
 		if kills > 0.0:
 			GameState.enemies_killed += int(kills)
 			GameState.add_xp(int(kills * avg["xp"]))
+			# Score mirrors add_kill_score: enemy_xp × level × combo (≈1.5 avg)
+			GameState.score += int(kills * avg["xp"] * GameState.player_level * SIM_COMBO_MUL)
 			if GameState.lifesteal_per_kill > 0:
 				GameState.heal(int(kills) * GameState.lifesteal_per_kill)
 		_consume_level_ups()
@@ -132,7 +215,8 @@ func _simulate_run(dps_samples: Dictionary, boss_ttks: Array[float]) -> Dictiona
 			hits_per_s = minf(hits_per_s, 1.0 / 0.6)
 			var per_hit: float = maxf(1.0, avg["dmg"] - GameState.armor)
 			dps_in = hits_per_s * per_hit
-		var regen := GameState.regen_per_5s / 5.0
+		# Bone Broth heals per orb picked up; orbs ≈ kills, so fold into regen
+		var regen := GameState.regen_per_5s / 5.0 + GameState.orb_heal * (kills / SIM_DT)
 		GameState.player_health = mini(GameState.player_max_health,
 			GameState.player_health - int((dps_in - regen) * SIM_DT))
 
@@ -153,11 +237,14 @@ func _simulate_run(dps_samples: Dictionary, boss_ttks: Array[float]) -> Dictiona
 				sampled[minute] = true
 				dps_samples[minute].append(horde_dps)
 
-	return {"time": t, "level": GameState.player_level, "dps": _single_target_dps()}
+	# Giblet yield via the real earn formula (pure computation, no save).
+	var earned := Meta.compute_earn(GameState.score, GameState.bosses_killed, t / 60.0)
+	return {"time": t, "level": GameState.player_level, "dps": _single_target_dps(),
+		"giblets": int(earned["total"])}
 
 func _consume_level_ups() -> void:
 	while GameState.has_pending_level_up():
-		var choices := UpgradeData.get_random_choices(3)
+		var choices := UpgradeData.get_random_choices(GameState.level_up_choices)
 		if not choices.is_empty():
 			# Mid-skill pick model: 70% take the strongest card, 30% any of
 			# the three (theme/defense picks, mistakes). A pure coin-flip
@@ -205,11 +292,11 @@ func _avg_enemy_uncached(m: float) -> Dictionary:
 	var imp: float     = clampf((m - 2.0) * 0.1,   0.0, 0.20)
 	var cyclops: float = clampf((m - 3.0) * 0.04,  0.0, 0.12)
 	var charger: float = clampf((m - 4.0) * 0.075, 0.0, 0.15)
-	var demon: float   = 1.0 - spider - wraith - imp - cyclops - charger
+	var brawler: float = 1.0 - spider - wraith - imp - cyclops - charger
 	var mix := [
 		[spider,  MAIN.SPIDER_STATS], [wraith, MAIN.WRAITH_STATS],
 		[imp,     MAIN.IMP_STATS],    [cyclops, MAIN.CYCLOPS_STATS],
-		[charger, MAIN.CHARGER_STATS], [demon,  MAIN.DEMON_STATS],
+		[charger, MAIN.CHARGER_STATS], [brawler, MAIN.BRAWLER_STATS],
 	]
 	var hp_scale := (1.0 + MAIN.HP_SCALE_LIN * m + MAIN.HP_SCALE_QUAD * m * m) * _overtime(m)
 	var dmg_scale := (1.0 + MAIN.DMG_SCALE * m) * _overtime(m)

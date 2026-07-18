@@ -124,6 +124,18 @@ const ALL_UPGRADES: Array[Dictionary] = [
 		"color": Color(1.0, 0.9, 0.3),
 		"stat": "crit_chance", "add": 0.08
 	},
+	{
+		"id": "rear_shot", "name": "Eyes in the Back", "rarity": "uncommon", "power": 20,
+		"description": "Every volley fires one extra shot directly behind you",
+		"color": Color(0.6, 0.55, 0.9),
+		"stat": "rear_shot", "max_stacks": 1
+	},
+	{
+		"id": "orb_heal", "name": "Bone Broth", "rarity": "uncommon", "power": 18,
+		"description": "XP orbs are soup — each one heals 1 health",
+		"color": Color(0.55, 0.9, 0.55),
+		"stat": "orb_heal", "add": 1, "max_stacks": 2
+	},
 	# ---- rare (25 < P ≤ 40) -------------------------------------------------
 	{
 		"id": "multishot_1", "name": "Twin Barrage", "rarity": "rare", "power": 35,
@@ -159,13 +171,37 @@ const ALL_UPGRADES: Array[Dictionary] = [
 		"id": "crit_2", "name": "Executioner", "rarity": "rare", "power": 30,
 		"description": "+12% critical strike chance",
 		"color": Color(1.0, 0.8, 0.1),
-		"stat": "crit_chance", "add": 0.12
+		"stat": "crit_chance", "add": 0.12, "locked_by_default": true
 	},
 	{
 		"id": "lifesteal_1", "name": "Vampiric Strikes", "rarity": "rare", "power": 28,
 		"description": "Every kill restores 1 health",
 		"color": Color(0.7, 0.05, 0.25),
-		"stat": "lifesteal_per_kill", "add": 1, "max_stacks": 3
+		"stat": "lifesteal_per_kill", "add": 1, "max_stacks": 3, "locked_by_default": true
+	},
+	{
+		"id": "dash_vacuum", "name": "Grave Robber", "rarity": "rare", "power": 26,
+		"description": "Dashing yanks every XP orb on the field toward you",
+		"color": Color(0.3, 0.9, 0.6),
+		"stat": "dash_vacuum", "max_stacks": 1
+	},
+	{
+		"id": "kill_speed", "name": "Adrenal Gland", "rarity": "rare", "power": 28,
+		"description": "Kills flood you with adrenaline: +40% move speed for 1.5s",
+		"color": Color(1.0, 0.6, 0.2),
+		"stat": "kill_speed_burst", "max_stacks": 1
+	},
+	{
+		"id": "hurt_nova", "name": "Tantrum", "rarity": "rare", "power": 30,
+		"description": "Taking a hit detonates a furious nova, blasting everything nearby",
+		"color": Color(1.0, 0.2, 0.4),
+		"stat": "hurt_nova", "max_stacks": 2
+	},
+	{
+		"id": "extra_choice", "name": "Third Eye", "rarity": "rare", "power": 32,
+		"description": "It sees what could be: level-ups offer a 4th card",
+		"color": Color(0.55, 0.3, 0.9),
+		"stat": "extra_choice", "max_stacks": 1, "locked_by_default": true
 	},
 	# ---- epic (40 < P ≤ 60) ---------------------------------------------------
 	{
@@ -173,19 +209,19 @@ const ALL_UPGRADES: Array[Dictionary] = [
 		"description": "An undying skull rises at your feet, its eyes burning with arcane hunger",
 		"color": Color(0.35, 0.08, 0.50),
 		"icon_path": "res://assets/pickups/sentinel.png",
-		"stat": "spawn_sentry", "max_stacks": 3
+		"stat": "spawn_sentry", "max_stacks": 3, "locked_by_default": true
 	},
 	{
 		"id": "dash_knock_1", "name": "Shockwave", "rarity": "epic", "power": 42,
 		"description": "Your dash erupts outward — enemies are flung twice as hard",
 		"color": Color(0.9, 0.1, 0.95),
-		"stat": "dash_knockback_mul", "multiplier": 2.0, "max_stacks": 2
+		"stat": "dash_knockback_mul", "multiplier": 2.0, "max_stacks": 2, "locked_by_default": true
 	},
 	{
 		"id": "multishot_2", "name": "Overload", "rarity": "epic", "power": 60,
 		"description": "Fire TWO extra projectiles per shot",
 		"color": Color(0.9, 0.3, 1.0),
-		"stat": "projectile_count", "add": 2
+		"stat": "projectile_count", "add": 2, "locked_by_default": true
 	},
 	{
 		"id": "fire_rate_3", "name": "Adrenaline", "rarity": "epic", "power": 45,
@@ -199,31 +235,55 @@ const ALL_UPGRADES: Array[Dictionary] = [
 		"color": Color(1.0, 0.5, 0.4),
 		"stat": "titan_vigor"
 	},
+	{
+		"id": "dash_damage", "name": "Phase Ripper", "rarity": "epic", "power": 42,
+		"description": "You dash THROUGH them now — 150% weapon damage to everything you pass",
+		"color": Color(0.2, 0.9, 0.95),
+		"stat": "dash_damage", "max_stacks": 1, "locked_by_default": true
+	},
+	{
+		"id": "ricochet", "name": "Wishbone", "rarity": "epic", "power": 50,
+		"description": "Spent projectiles snap toward a fresh victim (+2 ricochets)",
+		"color": Color(0.95, 0.9, 0.7),
+		"stat": "ricochet", "add": 2, "max_stacks": 2, "locked_by_default": true
+	},
+	{
+		"id": "bloodlust", "name": "Red Mist", "rarity": "epic", "power": 45,
+		"description": "+0.5% damage per combo step, up to +50% — don't let it drop",
+		"color": Color(0.9, 0.05, 0.05),
+		"stat": "bloodlust", "max_stacks": 1, "locked_by_default": true
+	},
 	# ---- legendary (P > 60): build-defining -----------------------------------
 	{
 		"id": "leg_crit", "name": "Deathmark", "rarity": "legendary", "power": 85,
 		"description": "+25% crit chance and crits deal TRIPLE damage",
 		"color": Color(1.0, 0.85, 0.0),
-		"stat": "deathmark", "max_stacks": 1
+		"stat": "deathmark", "max_stacks": 1, "locked_by_default": true
 	},
 	{
 		"id": "leg_aoe", "name": "Hellfire Rounds", "rarity": "legendary", "power": 90,
 		"description": "Every hit detonates, burning nearby enemies for 60% damage",
 		"color": Color(1.0, 0.35, 0.0),
-		"stat": "hellfire", "max_stacks": 1
+		"stat": "hellfire", "max_stacks": 1, "locked_by_default": true
 	},
 	{
 		"id": "leg_summon", "name": "Bone Legion", "rarity": "legendary", "power": 80,
 		"description": "TWO more sentinels rise — and all sentinels strike at full power",
 		"color": Color(0.8, 0.75, 0.6),
 		"icon_path": "res://assets/pickups/sentinel.png",
-		"stat": "bone_legion", "max_stacks": 1
+		"stat": "bone_legion", "max_stacks": 1, "locked_by_default": true
 	},
 	{
 		"id": "leg_sustain", "name": "Gorefeast", "rarity": "legendary", "power": 75,
 		"description": "Devour the fallen: +3 health per kill and +25% move speed",
 		"color": Color(0.9, 0.1, 0.3),
-		"stat": "gorefeast", "max_stacks": 1
+		"stat": "gorefeast", "max_stacks": 1, "locked_by_default": true
+	},
+	{
+		"id": "leg_faustian", "name": "Faustian Bargain", "rarity": "legendary", "power": 85,
+		"description": "Double ALL damage. Half your maximum health. Sign here",
+		"color": Color(0.7, 0.0, 0.9),
+		"stat": "faustian", "max_stacks": 1, "locked_by_default": true
 	},
 ]
 
@@ -232,6 +292,10 @@ const CRIT_CHANCE_CAP := 0.6
 const PROJECTILE_COUNT_CAP := 8
 
 static func _is_available(upgrade: Dictionary) -> bool:
+	# Roulette-gated pool: locked-by-default entries stay out of the rotation
+	# until won at the end of a run (or bundled with a character unlock).
+	if upgrade.get("locked_by_default", false) and not Meta.is_upgrade_unlocked(upgrade["id"]):
+		return false
 	var stacks: int = GameState.upgrade_stacks.get(upgrade["id"], 0)
 	if stacks >= int(upgrade.get("max_stacks", 999)):
 		return false
@@ -260,10 +324,35 @@ static func get_random_choices(count: int = 3) -> Array[Dictionary]:
 		var pool := _roll_rarity_pool(by_rarity, picked_ids)
 		if pool.is_empty():
 			break
-		var pick: Dictionary = pool.pick_random()
+		var pick := _weighted_pick(pool)
 		picked_ids.append(pick["id"])
 		choices.append(pick)
 	return choices
+
+# Within-rarity pick, biased by the selected character's signature upgrades
+# (GameState.draw_bias, weight 1.0 for everything else).
+static func _weighted_pick(pool: Array) -> Dictionary:
+	var total := 0.0
+	for u in pool:
+		total += float(GameState.draw_bias.get(u["id"], 1.0))
+	var roll := randf() * total
+	var acc := 0.0
+	for u in pool:
+		acc += float(GameState.draw_bias.get(u["id"], 1.0))
+		if roll < acc:
+			return u
+	return pool.back()
+
+# A single random still-available upgrade of the given rarity ({} if none).
+# Used by the Grim Arsenal talent's free starting common.
+static func get_random_by_rarity(rarity: String) -> Dictionary:
+	var pool: Array = []
+	for u in ALL_UPGRADES:
+		if u["rarity"] == rarity and _is_available(u):
+			pool.append(u)
+	if pool.is_empty():
+		return {}
+	return pool.pick_random()
 
 static func _roll_rarity_pool(by_rarity: Dictionary, exclude: Array) -> Array:
 	var total := 0
@@ -357,3 +446,26 @@ static func apply_upgrade(upgrade: Dictionary) -> void:
 		"gorefeast":
 			GameState.lifesteal_per_kill += 3
 			GameState.move_speed *= 1.25
+		"rear_shot":
+			GameState.rear_shot = true
+		"orb_heal":
+			GameState.orb_heal += upgrade.get("add", 1)
+		"dash_vacuum":
+			GameState.dash_vacuum = true
+		"kill_speed_burst":
+			GameState.kill_speed_burst = true
+		"hurt_nova":
+			GameState.hurt_nova_level += 1
+		"extra_choice":
+			GameState.level_up_choices = 4
+		"dash_damage":
+			GameState.dash_damage_pct = 1.5
+		"ricochet":
+			GameState.ricochet_bounces += upgrade.get("add", 2)
+		"bloodlust":
+			GameState.bloodlust = true
+		"faustian":
+			GameState.damage_mul *= 2.0
+			GameState.player_max_health = maxi(1, GameState.player_max_health / 2)
+			GameState.player_health = mini(GameState.player_health, GameState.player_max_health)
+			GameState.health_changed.emit(GameState.player_health, GameState.player_max_health)

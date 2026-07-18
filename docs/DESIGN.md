@@ -88,7 +88,9 @@ upgrade, score it and let the band place it; never hand-assign rarity.
 
 **Four archetypes, each with a legendary capstone**: crit (Keen Edge →
 Executioner → Deathmark), area (multishot/pierce → Hellfire Rounds), summons
-(Sentinel ×3 → Bone Legion), sustain (Regrowth/Vampiric → Gorefeast).
+(Sentinel ×3 → Bone Legion), sustain (Regrowth/Vampiric → Gorefeast) — plus a
+fifth, cross-cutting legendary, Faustian Bargain (damage ×2, max HP halved),
+which sharpens whatever build it lands in rather than defining one.
 Legendaries at weight 3 appear ~0.9 times per 27-level run on average —
 build-defining when they land, not a plan you can rely on.
 
@@ -103,16 +105,39 @@ radius means they often shoot the *wrong* target — the gap Bone Legion closes.
 
 ## Meta-progression
 
-Deliberately modest: full board ≈ one early level-up per category, ~25 good
-runs to complete. It exists to (a) give bad runs a consolation reward and
-(b) let weaker players self-serve a small handicap. It must never trivialise
-a run — that's why unlocks are additive to *base* stats (which multipliers
-then scale from a barely-higher floor) and why there is no meta unlock for
-fire rate, projectile count, or anything else on the DPS multiplier path
-except +1 flat damage ×3.
+Three long-term tracks, all deliberately incapable of trivialising a run
+(numbers in docs/BALANCE.md §6):
 
-Giblets at 1 per 400 score ≈ 3–8 per early run, 25–60 per good run — a full
-unlock (`cost × rank`) is always 2+ runs away, so the shop stays a slow drip.
+**Talent tree** — 3 branches × 3 tiers of *additive base-floor* bumps. In-run
+power NEVER persists across runs: a 4-shot build dies with the run. The tree
+exists to (a) give bad runs a consolation reward and (b) let weaker players
+self-serve a small handicap. There is no talent for fire rate, projectile
+count, crit, or anything else on the DPS multiplier path except flat +1
+damage — multipliers scale off a barely-higher floor, so maxed talents shift
+the median death from ~17 to ~20 min and the §3 overtime wall still ends
+every run by 25.
+
+**Characters** — stat-delta + starting-passive variants. The free default is
+The Wizard (animated 8-directional HD sprite set; save id remains `ghoul`);
+the three unlockables use static sprites. Passives (starting
+crit / sentry / lifesteal) are the *only* sanctioned benders of the
+additive-only rule: each is paid for with a negative delta and validated
+per-character in BalanceSim against the same death-time envelope. The ×3
+draw bias on signature upgrades changes build *texture*, not power — the
+rarity roll is untouched.
+
+**Upgrade roulette** — the slow content drip. Fourteen upgrades (all
+legendaries + the exotics, including the quirk-batch epics) start locked out
+of the level-up rotation and unlock one per run via a rarity-weighted
+end-of-run spin, gated on surviving 5:00 or killing a boss so instant-suicide
+runs earn nothing. New accounts play a thinner,
+tamer pool and grow into the full one — progression you *feel* in the draw,
+not just in the stat floor.
+
+Giblet income is boss/survival-weighted with the score component capped
+(score compounds with level × combo late and would otherwise dwarf
+everything). ~21/run early, ~31 endgame; the full board + roster ≈ 38–40
+good runs.
 
 ## Juice
 

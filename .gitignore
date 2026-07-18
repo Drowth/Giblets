@@ -11,3 +11,5 @@
 # OS
 .DS_Store
 Thumbs.db
+project.godot
+Godot_v4.7-stable_win64.exe

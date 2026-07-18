@@ -64,7 +64,7 @@ func show_choices() -> void:
 
 	Sfx.play(CARD_FAN_SOUND, -6.0)
 
-	var choices := UpgradeData.get_random_choices(3)
+	var choices := UpgradeData.get_random_choices(GameState.level_up_choices)
 	var cards: Array[Button] = []
 	for upgrade: Dictionary in choices:
 		var card := _make_card(upgrade)
@@ -94,7 +94,13 @@ func _animate_card_draw(card: Button, index: int) -> void:
 	tw.tween_property(card, "position:y", rest_pos.y, CARD_SLIDE_DURATION) \
 		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	tw.parallel().tween_property(card, "modulate:a", 1.0, CARD_SLIDE_DURATION * 0.7)
-	tw.tween_callback(func(): card.disabled = false)
+	tw.tween_callback(func():
+		card.disabled = false
+		# Seed controller/keyboard focus on the first dealt card — without
+		# this a gamepad player can never select an upgrade (soft-lock).
+		if index == 0:
+			card.grab_focus()
+	)
 
 func _make_card(upgrade: Dictionary) -> Button:
 	var rarity: String = upgrade.get("rarity", "common")
@@ -117,6 +123,8 @@ func _make_card(upgrade: Dictionary) -> Button:
 	s_hover.set_border_width_all(1)
 	s_hover.set_corner_radius_all(1)
 	btn.add_theme_stylebox_override("hover", s_hover)
+	# Gamepad focus needs a visible state distinct from normal
+	btn.add_theme_stylebox_override("focus", s_hover)
 
 	var s_pressed := StyleBoxFlat.new()
 	s_pressed.bg_color     = Color(0.05, 0.04, 0.08)

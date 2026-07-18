@@ -1,7 +1,6 @@
 extends CharacterBody2D
 
 const XP_ORB_SCENE  = preload("res://scenes/XPOrb.tscn")
-const BLOOD_SCENE   = preload("res://scenes/BloodSplatter.tscn")
 const BOMB_SCENE    = preload("res://scenes/BombPickup.tscn")
 
 @export var move_speed:       float = 60.0
@@ -11,118 +10,85 @@ const BOMB_SCENE    = preload("res://scenes/BombPickup.tscn")
 @export var damage:           int   = 10
 @export var contact_cooldown: float = 0.8
 @export var is_boss:          bool  = false
+@export var is_cyclops:       bool  = false  # set true before add_child(), mirrors is_boss
 
 var _player:         Node2D  = null
 var _contact_timer:  float   = 0.0
 var _dead:           bool    = false
 var _xp_container:   Node    = null
 var _knockback_vel:  Vector2 = Vector2.ZERO
-var _effective_scale: Vector2
 var _last_dir:       Vector2 = Vector2.DOWN
+var _facing:         String  = "S"
+var _attack_anim_timer: float = 0.0  # boss only; see ATTACK_ANIM_DURATION
+var _charmed:        bool    = false
+var _charm_timer:    float   = 0.0
 
-@onready var sprite:      Sprite2D        = $Sprite2D
-@onready var anim_player: AnimationPlayer = $AnimationPlayer
+@onready var sprite:      Sprite2D         = $Sprite2D
+@onready var anim_sprite: AnimatedSprite2D = $AnimSprite
 
-const BASE_SCALE  := Vector2(3.0, 3.0)    # bat.png is 16x16 pixel art
-const BOSS_SCALE  := Vector2(0.168, 0.168) # boss1.png is a large source image
+const ANIM_SCALE := Vector2(0.7, 0.7)  # brawler: 192px HD frames, ~72px tall content
+const ANIM_PATH  := "res://assets/enemies/brawler"
+# anim -> [fps, loops]. hurt: 15 frames @ 60fps = 0.25s (matches take_hit's
+# await). die: 15 frames @ 34fps = 0.44s (fits _die()'s 0.45s await).
+const CORPSE_LINGER_BASE := 2.5  # seconds body stays after die anim
+const ANIMS: Dictionary = {
+	"idle": [10.0, true],
+	"run":  [16.0, true],
+	"die":  [34.0, false],
+	"hurt": [60.0, false],
+}
+
+const CYCLOPS_ANIM_SCALE := Vector2(0.64, 0.64)  # 192px HD frames, ~78px tall content
+const CYCLOPS_ANIM_PATH  := "res://assets/enemies/cyclops"
+# Same timing constraints as ANIMS (take_hit's 0.25s / _die()'s 0.45s awaits
+# are shared across every non-boss variant).
+const CYCLOPS_ANIMS: Dictionary = {
+	"idle": [10.0, true],
+	"run":  [16.0, true],
+	"die":  [34.0, false],
+	"hurt": [60.0, false],
+}
+
+# ~80 world px content height vs the player's ~43 and a regular enemy's ~50 —
+# reads clearly as a boss silhouette even before the health bar/BOSS label draw.
+const BOSS_ANIM_SCALE := Vector2(1.1, 1.1)  # 192px HD frames, ~73px tall content
+const BOSS_ANIM_PATH  := "res://assets/enemies/boss"
+const ATTACK_ANIM_DURATION := 0.5  # 15 frames @ 30fps; fits inside the 0.8s contact_cooldown gap
+const BOSS_ANIMS: Dictionary = {
+	"idle":   [10.0, true],
+	"run":    [16.0, true],
+	"die":    [34.0, false],
+	"hurt":   [60.0, false],
+	"attack": [30.0, false],
+}
 
 # ---------------------------------------------------------------------------
 func _ready() -> void:
+	# Top-down game: floating mode disables grounded-mode floor/platform
+	# tracking, which treats other enemies as "floors" and reads stale state
+	# when they are freed mid-contact (NaN warning spam + wasted solve time).
+	motion_mode = CharacterBody2D.MOTION_MODE_FLOATING
 	add_to_group("enemies")
+	sprite.hide()
+	anim_sprite.show()
+	# HD frames want smooth sampling; project default is nearest (pixel art)
+	anim_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	if is_boss:
 		add_to_group("bosses")
-		_effective_scale = BOSS_SCALE
-		var boss_tex = load("res://assets/enemies/boss1.png")
-		if boss_tex:
-			sprite.texture = boss_tex
 		var boss_shape := CircleShape2D.new()
 		boss_shape.radius = 32.0
 		$CollisionShape2D.shape = boss_shape
+		anim_sprite.sprite_frames = WizardFrames.build(BOSS_ANIM_PATH, BOSS_ANIMS)
+		anim_sprite.scale = BOSS_ANIM_SCALE
+	elif is_cyclops:
+		anim_sprite.sprite_frames = WizardFrames.build(CYCLOPS_ANIM_PATH, CYCLOPS_ANIMS)
+		anim_sprite.scale = CYCLOPS_ANIM_SCALE
 	else:
-		_effective_scale = BASE_SCALE
-	sprite.scale = _effective_scale
+		anim_sprite.sprite_frames = WizardFrames.build(ANIM_PATH, ANIMS)
+		anim_sprite.scale = ANIM_SCALE
+	anim_sprite.play("idle_S")
 	health = max_health
 	_player = get_tree().get_first_node_in_group("player")
-	_build_animations()
-	anim_player.play("idle")
-
-# ---------------------------------------------------------------------------
-func _build_animations() -> void:
-	var lib := AnimationLibrary.new()
-	lib.add_animation("idle",  _anim_idle())
-	lib.add_animation("walk",  _anim_walk())
-	lib.add_animation("hurt",  _anim_hurt())
-	lib.add_animation("death", _anim_death())
-	anim_player.add_animation_library("", lib)
-
-func _anim_idle() -> Animation:
-	var a := Animation.new()
-	a.length    = 0.8
-	a.loop_mode = Animation.LOOP_LINEAR
-	var t := a.add_track(Animation.TYPE_VALUE)
-	a.track_set_path(t, "Sprite2D:position")
-	a.value_track_set_update_mode(t, Animation.UPDATE_CONTINUOUS)
-	a.track_insert_key(t, 0.0, Vector2(0, 0))
-	a.track_insert_key(t, 0.4, Vector2(0, 3))
-	a.track_insert_key(t, 0.8, Vector2(0, 0))
-	return a
-
-func _anim_walk() -> Animation:
-	# Faster bob; lean is driven procedurally in _physics_process
-	var a := Animation.new()
-	a.length    = 0.4
-	a.loop_mode = Animation.LOOP_LINEAR
-	var t := a.add_track(Animation.TYPE_VALUE)
-	a.track_set_path(t, "Sprite2D:position")
-	a.value_track_set_update_mode(t, Animation.UPDATE_CONTINUOUS)
-	a.track_insert_key(t, 0.00, Vector2(0,  0))
-	a.track_insert_key(t, 0.10, Vector2(0, -2))
-	a.track_insert_key(t, 0.20, Vector2(0,  0))
-	a.track_insert_key(t, 0.30, Vector2(0, -2))
-	a.track_insert_key(t, 0.40, Vector2(0,  0))
-	return a
-
-func _anim_hurt() -> Animation:
-	var a := Animation.new()
-	a.length    = 0.22
-	a.loop_mode = Animation.LOOP_NONE
-	var ts := a.add_track(Animation.TYPE_VALUE)
-	a.track_set_path(ts, "Sprite2D:scale")
-	a.value_track_set_update_mode(ts, Animation.UPDATE_CONTINUOUS)
-	a.track_insert_key(ts, 0.00, _effective_scale)
-	a.track_insert_key(ts, 0.07, Vector2(_effective_scale.x * 1.3, _effective_scale.y * 0.7))
-	a.track_insert_key(ts, 0.13, Vector2(_effective_scale.x * 0.9, _effective_scale.y * 1.1))
-	a.track_insert_key(ts, 0.22, _effective_scale)
-	var tm := a.add_track(Animation.TYPE_VALUE)
-	a.track_set_path(tm, "Sprite2D:modulate")
-	a.value_track_set_update_mode(tm, Animation.UPDATE_CONTINUOUS)
-	var base_mod := Color.WHITE
-	a.track_insert_key(tm, 0.00, base_mod)
-	a.track_insert_key(tm, 0.02, Color(4.0, 4.0, 4.0, 1.0))
-	a.track_insert_key(tm, 0.10, Color(4.0, 4.0, 4.0, 1.0))
-	a.track_insert_key(tm, 0.22, base_mod)
-	return a
-
-func _anim_death() -> Animation:
-	var a := Animation.new()
-	a.length    = 0.4
-	a.loop_mode = Animation.LOOP_NONE
-	var tr := a.add_track(Animation.TYPE_VALUE)
-	a.track_set_path(tr, "Sprite2D:rotation")
-	a.value_track_set_update_mode(tr, Animation.UPDATE_CONTINUOUS)
-	a.track_insert_key(tr, 0.0, 0.0)
-	a.track_insert_key(tr, 0.4, TAU)
-	var ts := a.add_track(Animation.TYPE_VALUE)
-	a.track_set_path(ts, "Sprite2D:scale")
-	a.value_track_set_update_mode(ts, Animation.UPDATE_CONTINUOUS)
-	a.track_insert_key(ts, 0.0, _effective_scale)
-	a.track_insert_key(ts, 0.4, Vector2.ZERO)
-	var tm := a.add_track(Animation.TYPE_VALUE)
-	a.track_set_path(tm, "Sprite2D:modulate")
-	a.value_track_set_update_mode(tm, Animation.UPDATE_CONTINUOUS)
-	a.track_insert_key(tm, 0.00, Color(4.0, 4.0, 4.0))
-	a.track_insert_key(tm, 0.08, Color.WHITE)
-	return a
 
 # ---------------------------------------------------------------------------
 func _physics_process(delta: float) -> void:
@@ -132,6 +98,10 @@ func _physics_process(delta: float) -> void:
 		_player = get_tree().get_first_node_in_group("player")
 		return
 
+	# Charmed enemies fight for the player
+	if CharmedAI.process_charmed(self, delta):
+		return
+
 	_contact_timer = maxf(0.0, _contact_timer - delta)
 
 	if _knockback_vel.length_squared() > 4.0:
@@ -139,42 +109,55 @@ func _physics_process(delta: float) -> void:
 		velocity = _knockback_vel
 	else:
 		_knockback_vel = Vector2.ZERO
-		var dir := (_player.global_position - global_position).normalized()
+		var to_player := _player.global_position - global_position
+		var dir := to_player.normalized() if to_player.length_squared() > 0.0001 else _last_dir
 		velocity = dir * move_speed
 	move_and_slide()
 
-	if global_position.distance_to(_player.global_position) < 25.0 and _contact_timer <= 0.0:
-		_contact_timer = contact_cooldown
-		if _player.has_method("take_damage"):
-			_player.take_damage(damage)
+	# Charmed enemies don't hurt the player
+	if not _charmed:
+		if global_position.distance_to(_player.global_position) < 25.0 and _contact_timer <= 0.0:
+			_contact_timer = contact_cooldown
+			if _player.has_method("take_damage"):
+				_player.take_damage(damage)
+				if is_boss:
+					_attack_anim_timer = ATTACK_ANIM_DURATION
 
 	var moving := velocity.length() > 5.0
 	if moving:
 		_last_dir = velocity.normalized()
-	var cur := anim_player.current_animation
-	if moving and cur not in ["hurt", "death", "walk"]:
-		anim_player.play("walk")
-	elif not moving and cur not in ["hurt", "death", "idle"]:
-		anim_player.play("idle")
+		_facing = _dir_to_compass(_last_dir)
 
-	if moving:
-		sprite.rotation = lerp(sprite.rotation, velocity.normalized().x * 0.12, delta * 8.0)
-		sprite.flip_h   = velocity.x < -5.0
+	# Don't stomp an in-progress hurt/die animation — take_hit()/_die() own
+	# those and hand control back explicitly when they finish.
+	var cur_state := String(anim_sprite.animation).get_slice("_", 0)
+	if cur_state in ["hurt", "die"]:
+		pass
+	elif _attack_anim_timer > 0.0:
+		_attack_anim_timer = maxf(0.0, _attack_anim_timer - delta)
+		_play_anim("attack")
 	else:
-		sprite.rotation = lerp(sprite.rotation, 0.0, delta * 6.0)
+		_play_anim("run" if moving else "idle")
 
 # ---------------------------------------------------------------------------
 func _draw() -> void:
 	if _dead:
 		return
+	# Charm visual: pulsing green ring
+	if _charmed:
+		var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.008)
+		draw_arc(Vector2.ZERO, 20.0 + pulse * 4.0, 0.0, TAU, 32, Color(0.3, 1.0, 0.3, 0.4 + pulse * 0.3), 2.0)
+		return
+
 	var hp_ratio := float(health) / float(max_health) if max_health > 0 else 0.0
 	if hp_ratio >= 1.0:
 		return
 	if is_boss:
-		draw_rect(Rect2(-32, -58, 64, 7), Color(0.12, 0.0, 0.0))
-		draw_rect(Rect2(-32, -58, 64.0 * hp_ratio, 7), Color(1.0, 0.35, 0.0))
+		# Offsets raised vs the old boss1.png sprite to clear the taller Ogre frames.
+		draw_rect(Rect2(-32, -75, 64, 7), Color(0.12, 0.0, 0.0))
+		draw_rect(Rect2(-32, -75, 64.0 * hp_ratio, 7), Color(1.0, 0.35, 0.0))
 		var font := ThemeDB.fallback_font
-		draw_string(font, Vector2(-14, -63), "BOSS", HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Color(1.0, 0.5, 0.0))
+		draw_string(font, Vector2(-14, -80), "BOSS", HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Color(1.0, 0.5, 0.0))
 	else:
 		draw_rect(Rect2(-14, -26, 28, 4), Color(0.12, 0.0, 0.0))
 		draw_rect(Rect2(-14, -26, 28.0 * hp_ratio, 4), Color(0.75, 0.05, 0.05))
@@ -185,6 +168,14 @@ func apply_knockback(dir: Vector2, force: float) -> void:
 		return
 	_knockback_vel = dir * force
 
+func apply_charm(duration: float) -> void:
+	if _dead or _charmed:
+		return
+	_charmed = true
+	_charm_timer = duration
+	# Visual feedback for charm
+	anim_sprite.modulate = Color(0.3, 1.0, 0.3)  # Green tint
+
 func take_hit(dmg: int) -> void:
 	if _dead:
 		return
@@ -193,12 +184,24 @@ func take_hit(dmg: int) -> void:
 	if health <= 0:
 		_die()
 		return
-	sprite.position = Vector2.ZERO
-	sprite.rotation = 0.0
-	anim_player.play("hurt")
+	_play_anim("hurt")
 	await get_tree().create_timer(0.25).timeout
 	if not _dead:
-		anim_player.play("walk" if velocity.length() > 5.0 else "idle")
+		_play_anim("run" if velocity.length() > 5.0 else "idle")
+
+# Map a direction vector to one of the 8 compass animation suffixes.
+# Screen coords: +y is down, so angle 0 = E and the octants walk E→SE→S→…
+func _dir_to_compass(v: Vector2) -> String:
+	if v.length_squared() < 0.0001:
+		return _facing
+	var octant := wrapi(roundi(v.angle() / (TAU / 8.0)), 0, 8)
+	return ["E", "SE", "S", "SW", "W", "NW", "N", "NE"][octant]
+
+# Play "<state>_<facing>" if not already playing it (play() restarts otherwise).
+func _play_anim(state: String) -> void:
+	var anim_name := "%s_%s" % [state, _facing]
+	if anim_sprite.animation != anim_name:
+		anim_sprite.play(anim_name)
 
 func fire_kill() -> void:
 	if _dead:
@@ -212,7 +215,7 @@ func fire_kill() -> void:
 	set_physics_process(false)
 	$CollisionShape2D.set_deferred("disabled", true)
 	remove_from_group("enemies")
-	GameState.add_kill_score(xp_value)
+	GameState.add_kill_score(xp_value, is_boss)
 	_spawn_blood()
 	queue_free()
 
@@ -222,11 +225,9 @@ func _die() -> void:
 	set_physics_process(false)
 	$CollisionShape2D.set_deferred("disabled", true)
 	remove_from_group("enemies")
-	GameState.add_kill_score(xp_value)
+	GameState.add_kill_score(xp_value, is_boss)
 	GameState.kill_hitstop(is_boss)
-	sprite.position = Vector2.ZERO
-	sprite.rotation = 0.0
-	anim_player.play("death")
+	_play_anim("die")
 	_spawn_blood()
 	_drop_xp()
 	if is_boss:
@@ -234,13 +235,13 @@ func _die() -> void:
 		_spawn_bomb()
 		_vacuum_xp_orbs()
 	await get_tree().create_timer(0.45).timeout
+	# Corpse linger: longer for bosses, shorter as enemy density rises
+	var linger := GameState.get_corpse_linger(5.0 if is_boss else CORPSE_LINGER_BASE)
+	await get_tree().create_timer(linger).timeout
 	queue_free()
 
 # ---------------------------------------------------------------------------
 func _spawn_blood() -> void:
-	var splat = BLOOD_SCENE.instantiate()
-	get_parent().add_child(splat)
-	splat.global_position = global_position
 	var smears := get_tree().get_first_node_in_group("blood_smears")
 	if smears:
 		smears.add_smear(global_position, _last_dir, 2.5 if is_boss else 1.0)

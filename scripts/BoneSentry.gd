@@ -11,11 +11,16 @@ var _orbit_angle: float = 0.0
 var _player: Node2D = null
 var _proj_container: Node2D = null
 var _sprite: Sprite2D = null
+# Set by the spawner for batch spawns (start-of-run sentries) where
+# sentry_count is already at its final value and can't disambiguate slots.
+var orbit_index: int = -1
 
 func _ready() -> void:
 	_player = get_tree().get_first_node_in_group("player")
-	# Spread multiple sentries evenly: sentry_count is already incremented before spawn
-	_orbit_angle = (GameState.sentry_count - 1) * (TAU / 3.0)
+	# Spread multiple sentries evenly. Incremental spawns (level-up picks)
+	# derive the slot from sentry_count, which is incremented before spawn.
+	var slot := orbit_index if orbit_index >= 0 else GameState.sentry_count - 1
+	_orbit_angle = slot * (TAU / 3.0)
 	_sprite = Sprite2D.new()
 	_sprite.texture = load("res://assets/pickups/sentinel.png")
 	var s := 48.0 / _sprite.texture.get_size().y
@@ -56,7 +61,8 @@ func _try_fire() -> void:
 		_proj_container = get_tree().get_first_node_in_group("projectiles_container")
 	if not _proj_container:
 		return
-	var dir := (nearest.global_position - global_position).normalized()
+	var to_nearest := nearest.global_position - global_position
+	var dir := to_nearest.normalized() if to_nearest.length_squared() > 0.0001 else Vector2.RIGHT
 	_sprite.flip_h = dir.x < 0.0
 	var count := GameState.projectile_count
 	for i in count:
@@ -67,4 +73,4 @@ func _try_fire() -> void:
 		_proj_container.add_child(proj)
 		proj.global_position = global_position
 		var dmg := int(GameState.projectile_damage * GameState.damage_mul * GameState.sentry_damage_mul)
-		proj.launch(dir.rotated(angle_offset), dmg, GameState.projectile_speed, GameState.projectile_pierce)
+		proj.launch(dir.rotated(angle_offset), dmg, GameState.projectile_speed, GameState.projectile_pierce, "death")

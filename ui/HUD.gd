@@ -102,10 +102,12 @@ func show_game_over() -> void:
 	overlay.add_child(center)
 
 	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 4)
+	vbox.add_theme_constant_override("separation", 3)
 	vbox.custom_minimum_size = Vector2(160, 0)
 	vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	center.add_child(vbox)
+	_death_vbox = vbox
+	_death_transients.clear()
 
 	var title := Label.new()
 	title.text = "YOU DIED"
@@ -114,6 +116,7 @@ func show_game_over() -> void:
 	title.add_theme_color_override("font_color", Color(0.88, 0.04, 0.04))
 	title.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vbox.add_child(title)
+	_death_title = title
 
 	var score_lbl := Label.new()
 	score_lbl.text = "SCORE  %d" % GameState.score
@@ -122,10 +125,11 @@ func show_game_over() -> void:
 	score_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.1))
 	score_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vbox.add_child(score_lbl)
+	_death_score = score_lbl
 
 	var t := int(GameState.elapsed_time)
 	var dps := GameState.damage_dealt / maxf(GameState.elapsed_time, 1.0)
-	var giblets_earned := Meta.earn_from_score(GameState.score)
+	var earned := Meta.earn_from_run(GameState.score, GameState.bosses_killed, GameState.elapsed_time / 60.0)
 	var stats_lbl := Label.new()
 	stats_lbl.text = "Level %d  •  %d kills  •  %d:%02d survived  •  %.0f DPS" % [
 		GameState.player_level, GameState.enemies_killed, t / 60, t % 60, dps
@@ -135,21 +139,123 @@ func show_game_over() -> void:
 	stats_lbl.add_theme_color_override("font_color", Color(0.7, 0.65, 0.7))
 	stats_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vbox.add_child(stats_lbl)
+	_death_transients.append(stats_lbl)
+
+	var breakdown_lbl := Label.new()
+	breakdown_lbl.text = "+%d score  +%d bosses  +%d survival" % [
+		earned["score_part"], earned["boss_part"], earned["time_part"]
+	]
+	breakdown_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	breakdown_lbl.add_theme_font_size_override("font_size", 5)
+	breakdown_lbl.add_theme_color_override("font_color", Color(0.65, 0.45, 0.35))
+	breakdown_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vbox.add_child(breakdown_lbl)
+	_death_transients.append(breakdown_lbl)
 
 	var giblets_lbl := Label.new()
-	giblets_lbl.text = "+%d GIBLETS  (%d total)" % [giblets_earned, Meta.giblets]
+	giblets_lbl.text = "+%d GIBLETS  (%d total)" % [earned["total"], Meta.giblets]
 	giblets_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	giblets_lbl.add_theme_font_size_override("font_size", 7)
 	giblets_lbl.add_theme_color_override("font_color", Color(0.95, 0.35, 0.30))
 	giblets_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vbox.add_child(giblets_lbl)
-	if giblets_earned > 0:
+	_death_giblets = giblets_lbl
+	if int(earned["total"]) > 0:
 		Sfx.play(COIN_SOUND, -6.0)
+
+	_build_roulette(vbox)
 
 	var sep := HSeparator.new()
 	vbox.add_child(sep)
+	_death_transients.append(sep)
 
 	_build_name_entry(vbox)
+
+# The 216-unit viewport can't fit the run summary AND the leaderboard at once.
+# Once the name is submitted, drop the transient rows (stats, giblet breakdown,
+# roulette, separator) and shrink the header so the leaderboard + buttons fit.
+var _death_vbox: VBoxContainer = null
+var _death_transients: Array[Node] = []
+var _death_title: Label = null
+var _death_score: Label = null
+var _death_giblets: Label = null
+
+func _compact_death_header() -> void:
+	for node in _death_transients:
+		if is_instance_valid(node):
+			node.queue_free()
+	_death_transients.clear()
+	if is_instance_valid(_death_title):
+		_death_title.add_theme_font_size_override("font_size", 12)
+	if is_instance_valid(_death_score):
+		_death_score.add_theme_font_size_override("font_size", 9)
+	if is_instance_valid(_death_giblets):
+		_death_giblets.queue_free()
+	if is_instance_valid(_death_vbox):
+		_death_vbox.add_theme_constant_override("separation", 2)
+
+# End-of-run upgrade roulette (docs/BALANCE.md §6): milestone-gated slot that
+# unlocks one locked upgrade into the permanent level-up rotation.
+const ROULETTE_TICKS := 14
+func _build_roulette(vbox: VBoxContainer) -> void:
+	var pool: Array = Meta.locked_upgrade_pool()
+	if pool.is_empty():
+		return
+	if not Meta.run_earned_spin():
+		var hint := Label.new()
+		hint.text = "survive 5:00 or slay a boss to spin for a new upgrade"
+		hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		hint.add_theme_font_size_override("font_size", 5)
+		hint.add_theme_color_override("font_color", Color(0.45, 0.4, 0.45))
+		hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		vbox.add_child(hint)
+		_death_transients.append(hint)
+		return
+
+	var won: Dictionary = Meta.roll_unlock()
+	if won.is_empty():
+		return
+
+	var banner := Label.new()
+	banner.text = "NEW UPGRADE IN ROTATION"
+	banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	banner.add_theme_font_size_override("font_size", 6)
+	banner.add_theme_color_override("font_color", Color(0.75, 0.45, 0.95))
+	banner.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vbox.add_child(banner)
+	_death_transients.append(banner)
+
+	var slot := Label.new()
+	slot.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	slot.add_theme_font_size_override("font_size", 8)
+	slot.custom_minimum_size = Vector2(140, 12)
+	slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	slot.process_mode = Node.PROCESS_MODE_ALWAYS
+	vbox.add_child(slot)
+	_death_transients.append(slot)
+	_animate_roulette(slot, pool, won)
+
+func _animate_roulette(slot: Label, pool: Array, won: Dictionary) -> void:
+	var won_color: Color = UpgradeData.RARITY_COLORS.get(won["rarity"], Color.WHITE)
+	for i in ROULETTE_TICKS:
+		var face: Dictionary = pool.pick_random()
+		slot.text = str(face["name"]).to_upper()
+		slot.add_theme_color_override("font_color", UpgradeData.RARITY_COLORS.get(face["rarity"], Color.WHITE))
+		Sfx.play_random([
+			"res://assets/sfx/cards/card_draw_1.wav",
+			"res://assets/sfx/cards/card_draw_2.wav",
+			"res://assets/sfx/cards/card_draw_3.wav",
+		], -14.0, 0.1)
+		# Decelerating ticks: fast flicker into a landing.
+		await get_tree().create_timer(0.06 + 0.16 * pow(float(i) / ROULETTE_TICKS, 2.0)).timeout
+		if not is_instance_valid(slot):
+			return
+	slot.text = "★ %s ★" % str(won["name"]).to_upper()
+	slot.add_theme_color_override("font_color", won_color)
+	if won["rarity"] in ["epic", "legendary"]:
+		Sfx.play(NEW_HIGH_SCORE_SOUND, -4.0)
+	else:
+		Sfx.play(COIN_SOUND, -6.0)
 
 func _build_name_entry(vbox: VBoxContainer) -> void:
 	var name_section := VBoxContainer.new()
@@ -207,6 +313,7 @@ func _build_name_entry(vbox: VBoxContainer) -> void:
 			raw = "UNKNOWN"
 		name_section.hide()
 		name_section.queue_free()
+		_compact_death_header()
 		var rank := HighScores.add_score(
 			raw, GameState.score, GameState.player_level,
 			GameState.enemies_killed, GameState.elapsed_time
@@ -223,7 +330,7 @@ func _build_leaderboard(vbox: VBoxContainer, current_rank: int) -> void:
 		var crown := Label.new()
 		crown.text = "★ NEW BEST RUN ★"
 		crown.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		crown.add_theme_font_size_override("font_size", 9)
+		crown.add_theme_font_size_override("font_size", 8)
 		crown.add_theme_color_override("font_color", Color(1.0, 0.84, 0.0))
 		vbox.add_child(crown)
 	elif current_rank > 0:
@@ -236,7 +343,7 @@ func _build_leaderboard(vbox: VBoxContainer, current_rank: int) -> void:
 	var header := Label.new()
 	header.text = "— HIGH SCORES —"
 	header.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	header.add_theme_font_size_override("font_size", 8)
+	header.add_theme_font_size_override("font_size", 7)
 	header.add_theme_color_override("font_color", Color(1.0, 0.85, 0.1))
 	vbox.add_child(header)
 
@@ -306,7 +413,7 @@ func _build_leaderboard(vbox: VBoxContainer, current_rank: int) -> void:
 		row.add_child(meta_lbl)
 
 	var spacer := Control.new()
-	spacer.custom_minimum_size = Vector2(0, 4)
+	spacer.custom_minimum_size = Vector2(0, 2)
 	vbox.add_child(spacer)
 
 	var btn_row := HBoxContainer.new()
