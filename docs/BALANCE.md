@@ -360,8 +360,8 @@ its signature upgrades into the level-up rotation.
 |---|---|---|---|---|
 | The Ghoul | free | — | — | — |
 | The Reaper | 80 | −20 HP | 10 % starting crit | crit_1/2, Deathmark |
-| The Necromancer | 140 | −2 damage | starts with a sentry | sentry_1, Bone Legion |
-| The Vampire | 220 | +20 HP, −10 speed | +1 lifesteal/kill | lifesteal, regen, Gorefeast |
+| The Necromancer | 140 | −4 damage | Bone Harvest: starts with a sentry; dash-through deals 50% weapon damage, a killing dash-hit spawns a temporary sentry (12s, max 3) | sentry_1, Bone Legion, Phase Ripper |
+| The Vampire | 220 | +20 HP, −15 speed | Exsanguinate: +1 lifesteal/kill; every 8th kill detonates a blood nova (130px radius, 1.2× weapon dmg) healing 25% of the damage dealt | lifesteal, regen, Gorefeast |
 
 Total spend (talents + roster) = **963 giblets ≈ 38–40 good runs**.
 

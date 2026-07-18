@@ -89,6 +89,7 @@ func _ready() -> void:
 	GameState.level_up_triggered.connect(_on_level_up)
 	GameState.game_over.connect(_on_game_over)
 	GameState.sentry_summoned.connect(_on_sentry_summoned)
+	GameState.temp_sentry_summoned.connect(_on_temp_sentry_summoned)
 	GameState.start_game()
 	# Fade to loading screen before heavy asset loading, then fade out once complete
 	if loading_screen:
@@ -544,15 +545,23 @@ func _on_upgrade_chosen() -> void:
 			var tw := music_player.create_tween()
 			tw.tween_property(music_player, "volume_db", -8.0, 0.5)
 
-func _on_sentry_summoned(orbit_index: int = -1) -> void:
+func _on_sentry_summoned(orbit_index: int = -1) -> Node2D:
 	var player := get_tree().get_first_node_in_group("player")
 	if not player:
-		return
+		return null
 	var sentry := Node2D.new()
 	sentry.set_script(BONE_SENTRY_SCRIPT)
 	sentry.orbit_index = orbit_index
 	add_child(sentry)
 	sentry.global_position = player.global_position
+	return sentry
+
+# Bone Harvest (Necromancer): a dash-kill spawns a sentry that self-expires
+# after `lifespan` seconds (BoneSentry.gd owns the countdown).
+func _on_temp_sentry_summoned(lifespan: float) -> void:
+	var sentry := _on_sentry_summoned()
+	if sentry:
+		sentry.lifespan = lifespan
 
 func _on_game_over() -> void:
 	spawn_timer.stop()

@@ -9,6 +9,8 @@ signal score_changed(new_score: int)
 signal game_over
 signal level_up_triggered
 signal sentry_summoned
+signal temp_sentry_summoned(lifespan: float)  # Bone Harvest: temporary sentry from a dash kill
+signal blood_nova_requested  # Exsanguinate: every 8th kill
 signal shake_requested(strength: float, duration: float)
 signal combo_changed(combo: int)
 signal second_wind_triggered  # Death Defiance talent saved the player
@@ -105,6 +107,8 @@ var dash_damage_pct: float = 0.0     # Phase Ripper: dash damage as fraction of 
 var ricochet_bounces: int = 0        # Wishbone: spent projectiles retarget
 var bloodlust: bool = false          # +0.5%/combo damage, capped +50%
 var _speed_burst_timer: float = 0.0
+var exsanguinate_enabled: bool = false  # Vampire passive: nova every 8th kill
+var _exsanguinate_counter: int = 0
 
 const SPEED_BURST_MUL      := 1.4
 const SPEED_BURST_DURATION := 1.5
@@ -137,6 +141,7 @@ var _combo_timer: float = 0.0
 
 var _pending_level_ups: int = 0
 var sentry_count: int = 0
+var temp_sentry_count: int = 0  # Bone Harvest: temporary sentries counted against their own cap
 var _regen_accum: float = 0.0
 var _hitstop_cd: float = 0.0
 
@@ -182,9 +187,12 @@ func _reset() -> void:
 	ricochet_bounces = 0
 	bloodlust = false
 	_speed_burst_timer = 0.0
+	exsanguinate_enabled = false
+	_exsanguinate_counter = 0
 	upgrade_stacks = {}
 	_pending_level_ups = 0
 	sentry_count = 0
+	temp_sentry_count = 0
 	# Character: additive stat deltas, then passive starting values, then the
 	# level-up draw bias (CharacterData.gd).
 	var character := CharacterData.get_selected()
@@ -196,6 +204,8 @@ func _reset() -> void:
 	crit_chance += float(passive.get("crit_chance", 0.0))
 	sentry_count += int(passive.get("sentry_count", 0))
 	lifesteal_per_kill += int(passive.get("lifesteal_per_kill", 0))
+	dash_damage_pct += float(passive.get("dash_damage_pct", 0.0))
+	exsanguinate_enabled = bool(passive.get("exsanguinate_enabled", 0.0) > 0.0)
 	draw_bias = character["draw_bias"]
 	player_health = player_max_health
 	score = 0
@@ -228,6 +238,11 @@ func add_kill_score(enemy_xp: int, is_boss: bool = false) -> void:
 	score += int(enemy_xp * player_level * combo_mul)
 	if lifesteal_per_kill > 0:
 		heal(lifesteal_per_kill)
+	if exsanguinate_enabled:
+		_exsanguinate_counter += 1
+		if _exsanguinate_counter >= 8:
+			_exsanguinate_counter = 0
+			blood_nova_requested.emit()
 	if kill_speed_burst:
 		_speed_burst_timer = SPEED_BURST_DURATION
 	score_changed.emit(score)

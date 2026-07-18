@@ -14,6 +14,9 @@ var _sprite: Sprite2D = null
 # Set by the spawner for batch spawns (start-of-run sentries) where
 # sentry_count is already at its final value and can't disambiguate slots.
 var orbit_index: int = -1
+# Bone Harvest (Necromancer): temporary sentries self-expire; permanent
+# sentries never set this and orbit forever.
+var lifespan: float = -1.0
 
 func _ready() -> void:
 	_player = get_tree().get_first_node_in_group("player")
@@ -30,6 +33,13 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if not GameState.game_active:
 		return
+	if lifespan > 0.0:
+		lifespan -= delta
+		if lifespan <= 0.0:
+			GameState.sentry_count = maxi(0, GameState.sentry_count - 1)
+			GameState.temp_sentry_count = maxi(0, GameState.temp_sentry_count - 1)
+			queue_free()
+			return
 	if not _player or not is_instance_valid(_player):
 		_player = get_tree().get_first_node_in_group("player")
 		return
