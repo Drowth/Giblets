@@ -196,7 +196,10 @@ func _compact_death_header() -> void:
 
 # End-of-run upgrade roulette (docs/BALANCE.md §6): milestone-gated slot that
 # unlocks one locked upgrade into the permanent level-up rotation.
-const ROULETTE_TICKS := 14
+const REEL_ROW_H     := 12.0  # height of one reel row; window shows 3
+const REEL_WIDTH     := 140.0
+const REEL_LEAD_ROWS := 18    # random faces scrolled past before the landing trio
+const REEL_SPIN_TIME := 2.4
 func _build_roulette(vbox: VBoxContainer) -> void:
 	var pool: Array = Meta.locked_upgrade_pool()
 	if pool.is_empty():
@@ -230,9 +233,10 @@ func _build_roulette(vbox: VBoxContainer) -> void:
 	_death_transients.append(card["root"])
 	_animate_roulette(card, pool, won)
 
-# A non-interactive upgrade card for the roulette result. The wheel flickers
-# through names in the title slot; when it lands, the rarity + description are
-# revealed inside the card so the player can read what the new upgrade does.
+# A non-interactive upgrade card for the roulette result. A 3-row slot-cylinder
+# window spins upgrade names past the centre; when it lands, the winner sits in
+# the middle with the two losing neighbours dimmed above/below, and the rarity +
+# description are revealed so the player can read what the new upgrade does.
 func _make_roulette_card(won: Dictionary) -> Dictionary:
 	var rarity: String = won.get("rarity", "common")
 	var rarity_color: Color = UpgradeData.RARITY_COLORS.get(rarity, Color.WHITE)
@@ -258,12 +262,23 @@ func _make_roulette_card(won: Dictionary) -> Dictionary:
 	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	panel.add_child(col)
 
-	var name_lbl := Label.new()
-	name_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	name_lbl.add_theme_font_size_override("font_size", 8)
-	name_lbl.custom_minimum_size = Vector2(140, 12)
-	name_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	col.add_child(name_lbl)
+	var reel := Control.new()
+	reel.clip_contents = true
+	reel.custom_minimum_size = Vector2(REEL_WIDTH, REEL_ROW_H * 3)
+	reel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.add_child(reel)
+
+	# Subtle band behind the centre row so the eye tracks the winning slot.
+	var centre_band := ColorRect.new()
+	centre_band.color = Color(1.0, 1.0, 1.0, 0.06)
+	centre_band.position = Vector2(0, REEL_ROW_H)
+	centre_band.size = Vector2(REEL_WIDTH, REEL_ROW_H)
+	centre_band.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	reel.add_child(centre_band)
+
+	var strip := Control.new()
+	strip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	reel.add_child(strip)
 
 	var rarity_lbl := Label.new()
 	rarity_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -282,26 +297,75 @@ func _make_roulette_card(won: Dictionary) -> Dictionary:
 	desc_lbl.visible = false
 	col.add_child(desc_lbl)
 
-	return {"root": panel, "name": name_lbl, "rarity": rarity_lbl, "desc": desc_lbl}
+	return {"root": panel, "strip": strip, "rarity": rarity_lbl, "desc": desc_lbl}
 
 func _animate_roulette(card: Dictionary, pool: Array, won: Dictionary) -> void:
-	var slot: Label = card["name"]
-	var won_color: Color = UpgradeData.RARITY_COLORS.get(won["rarity"], Color.WHITE)
-	for i in ROULETTE_TICKS:
-		var face: Dictionary = pool.pick_random()
-		slot.text = str(face["name"]).to_upper()
-		slot.add_theme_color_override("font_color", UpgradeData.RARITY_COLORS.get(face["rarity"], Color.WHITE))
+	var strip: Control = card["strip"]
+
+	# Face sequence: a run of random lead-in names, then the landing trio —
+	# losing neighbour / winner / losing neighbour — so what you didn't win
+	# stays visible above and below once the reel settles.
+	var others: Array = pool.filter(func(u): return u["id"] != won["id"])
+	var faces: Array = []
+	for i in REEL_LEAD_ROWS:
+		faces.append(pool.pick_random())
+	faces.append(others.pick_random() if not others.is_empty() else {})
+	faces.append(won)
+	faces.append(others.pick_random() if not others.is_empty() else {})
+
+	var labels: Array[Label] = []
+	for i in faces.size():
+		var face: Dictionary = faces[i]
+		var lbl := Label.new()
+		lbl.text = str(face["name"]).to_upper() if not face.is_empty() else "—"
+		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		lbl.add_theme_font_size_override("font_size", 7)
+		lbl.add_theme_color_override("font_color",
+			UpgradeData.RARITY_COLORS.get(face.get("rarity", ""), Color(0.45, 0.4, 0.45)))
+		lbl.custom_minimum_size = Vector2(REEL_WIDTH, REEL_ROW_H)
+		lbl.position = Vector2(0, i * REEL_ROW_H)
+		lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		strip.add_child(lbl)
+		labels.append(lbl)
+
+	var won_index := REEL_LEAD_ROWS + 1
+	var start_y := REEL_ROW_H                          # face 0 centred
+	var end_y := REEL_ROW_H - won_index * REEL_ROW_H   # winner centred
+	_reel_last_row = -1
+
+	# Tween is bound to the strip, so a mid-spin _compact_death_header (which
+	# frees the card) kills it automatically — no validity checks needed inside.
+	var tw := strip.create_tween()
+	tw.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
+	tw.tween_method(func(y: float): _reel_tick(strip, labels, y), start_y, end_y, REEL_SPIN_TIME)
+	tw.tween_callback(func(): _land_reel(card, labels[won_index], won))
+
+var _reel_last_row := -1
+
+# Scroll the strip and dim rows by distance from the centre slot, so the reel
+# reads as a cylinder curving away; tick a card sound each time a row passes.
+func _reel_tick(strip: Control, labels: Array[Label], y: float) -> void:
+	strip.position.y = y
+	var window_centre := REEL_ROW_H * 1.5
+	for lbl in labels:
+		var row_centre := y + lbl.position.y + REEL_ROW_H * 0.5
+		var dist: float = absf(row_centre - window_centre) / REEL_ROW_H
+		lbl.modulate.a = clampf(1.0 - dist * 0.55, 0.0, 1.0)
+	var row := int(round((REEL_ROW_H - y) / REEL_ROW_H))
+	if row != _reel_last_row:
+		_reel_last_row = row
 		Sfx.play_random([
 			"res://assets/sfx/cards/card_draw_1.wav",
 			"res://assets/sfx/cards/card_draw_2.wav",
 			"res://assets/sfx/cards/card_draw_3.wav",
 		], -14.0, 0.1)
-		# Decelerating ticks: fast flicker into a landing.
-		await get_tree().create_timer(0.06 + 0.16 * pow(float(i) / ROULETTE_TICKS, 2.0)).timeout
-		if not is_instance_valid(slot):
-			return
-	slot.text = "★ %s ★" % str(won["name"]).to_upper()
-	slot.add_theme_color_override("font_color", won_color)
+
+func _land_reel(card: Dictionary, won_lbl: Label, won: Dictionary) -> void:
+	if not is_instance_valid(won_lbl):
+		return
+	won_lbl.text = "★ %s ★" % str(won["name"]).to_upper()
+	won_lbl.add_theme_font_size_override("font_size", 8)
 	_reveal_card_details(card, won)
 	if won["rarity"] in ["epic", "legendary"]:
 		Sfx.play(NEW_HIGH_SCORE_SOUND, -4.0)
