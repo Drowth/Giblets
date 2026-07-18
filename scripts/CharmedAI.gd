@@ -3,7 +3,10 @@ class_name CharmedAI
 # Shared behavior for enemies under the Reaper's Puppet Master charm.
 # They hunt the nearest non-charmed enemy and deal reduced contact damage.
 
-const CHARMED_ATTACK_RANGE := 25.0
+# Enemies collide with each other (shared layer/mask 2), so two bodies stop
+# ~radius_a + radius_b apart (up to ~47px against a boss). The reach must clear
+# that gap or charmed units never touch their target — see 26px brawler pairs.
+const CHARMED_ATTACK_RANGE := 48.0
 const CHARMED_DAMAGE_PCT := 0.5
 
 static func process_charmed(enemy: CharacterBody2D, delta: float) -> bool:
