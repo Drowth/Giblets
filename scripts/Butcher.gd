@@ -114,7 +114,7 @@ func _physics_process(delta: float) -> void:
 			var to_player_face := _player.global_position - global_position
 			if to_player_face.length_squared() > 0.0001:
 				_facing = _dir_to_compass(to_player_face.normalized())
-			var flash := 0.5 + 0.5 * sin(_anim_time * 25.0)
+			var flash := 0.6 if Settings.reduce_flash else 0.5 + 0.5 * sin(_anim_time * 25.0)
 			anim_sprite.modulate = BUTCHER_TINT.lerp(Color(3.0, 0.5, 0.5), flash)
 			if _state_timer <= 0.0:
 				_state = State.CHARGE
@@ -174,7 +174,7 @@ func _draw() -> void:
 	if _state == State.WINDUP and _player and is_instance_valid(_player):
 		var local_player := to_local(_player.global_position)
 		var dir := local_player.normalized() if local_player.length_squared() > 0.0001 else _last_dir
-		var flash := 0.25 + 0.35 * (0.5 + 0.5 * sin(_anim_time * 25.0))
+		var flash := 0.42 if Settings.reduce_flash else 0.25 + 0.35 * (0.5 + 0.5 * sin(_anim_time * 25.0))
 		draw_line(dir * 40.0, dir * CHARGE_TRAVEL, Color(1.0, 0.1, 0.1, flash), 4.0)
 	var hp_ratio := float(health) / float(max_health) if max_health > 0 else 0.0
 	draw_rect(Rect2(-32, -66, 64, 7), Color(0.12, 0.0, 0.0))

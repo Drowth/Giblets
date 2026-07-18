@@ -83,6 +83,10 @@ func _rebuild() -> void:
 		Settings.apply_all()
 		Settings.save_settings()
 		_rebuild())
+	_add_toggle("Reduce Flash", Settings.reduce_flash, func():
+		Settings.reduce_flash = not Settings.reduce_flash
+		Settings.save_settings()
+		_rebuild())
 	_add_toggle("Fullscreen", Settings.fullscreen, func():
 		Settings.fullscreen = not Settings.fullscreen
 		Settings.apply_all()

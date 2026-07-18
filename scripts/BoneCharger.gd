@@ -115,7 +115,7 @@ func _physics_process(delta: float) -> void:
 			var to_player_face := _player.global_position - global_position
 			if to_player_face.length_squared() > 0.0001:
 				_facing = _dir_to_compass(to_player_face.normalized())
-			var flash := 0.5 + 0.5 * sin(_anim_time * 30.0)
+			var flash := 0.6 if Settings.reduce_flash else 0.5 + 0.5 * sin(_anim_time * 30.0)
 			anim_sprite.modulate = Color.WHITE.lerp(WINDUP_FLASH_COLOR, flash * 0.7)
 			if _state_timer <= 0.0:
 				_state = State.CHARGE
