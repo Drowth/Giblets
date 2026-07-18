@@ -17,6 +17,17 @@ A dark gothic horror arena survival game built in **Godot 4**. Survive endless w
 
 ---
 
+## Characters
+
+Pick your champion from the **START GAME** menu:
+
+- **The Reaper** — Passive **Soul Harvest**: charge/dash straight through any non-boss
+  enemy to *charm* it, turning it into a temporary ally that hunts the horde for you
+  before reverting to hostile. Bosses are immune.
+- **The Zealot** — A relentless survivor with no special passive.
+
+---
+
 ## Boss
 
 Every minute a boss erupts from the edge of the screen:

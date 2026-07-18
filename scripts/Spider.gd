@@ -19,8 +19,13 @@ var _xp_container:  Node    = null
 var _knockback_vel: Vector2 = Vector2.ZERO
 var _last_dir:      Vector2 = Vector2.DOWN
 var _web_timer:     float   = 0.0
+var is_charmed:     bool    = false
+var _charm_timer:   float   = 0.0
+var _charm_target:  Node2D  = null
 
 const SPRITE_SCALE := Vector2(3.0, 3.0)
+const CHARM_DURATION := 8.0
+const CHARM_TINT     := Color(0.35, 1.0, 0.65)
 
 @onready var sprite:      Sprite2D        = $Sprite2D
 @onready var anim_player: AnimationPlayer = $AnimationPlayer
@@ -100,6 +105,9 @@ func _anim_death() -> Animation:
 func _physics_process(delta: float) -> void:
 	if _dead:
 		return
+	if is_charmed:
+		_charmed_physics(delta)
+		return
 	if not _player or not is_instance_valid(_player):
 		_player = get_tree().get_first_node_in_group("player")
 		return
@@ -145,9 +153,83 @@ func _shoot_web() -> void:
 	web.global_position = global_position
 	web.launch((_player.global_position - global_position).normalized())
 
+# Charm — The Reaper's Soul Harvest passive turns this spider into a
+# temporary ally that hunts the horde, then reverts to hostile.
+func charm() -> void:
+	if _dead or is_charmed:
+		return
+	is_charmed    = true
+	_charm_timer  = CHARM_DURATION
+	_charm_target = null
+	remove_from_group("enemies")
+	add_to_group("allies")
+	sprite.modulate = CHARM_TINT
+	queue_redraw()
+
+func _end_charm() -> void:
+	is_charmed    = false
+	_charm_target = null
+	_charm_timer  = 0.0
+	if not _dead:
+		remove_from_group("allies")
+		add_to_group("enemies")
+		sprite.modulate = Color.WHITE
+	queue_redraw()
+
+func _find_nearest_enemy() -> Node2D:
+	var nearest: Node2D = null
+	var nearest_dist := INF
+	for e: Node2D in get_tree().get_nodes_in_group("enemies"):
+		if e == self:
+			continue
+		var d := global_position.distance_to(e.global_position)
+		if d < nearest_dist:
+			nearest_dist = d
+			nearest = e
+	return nearest
+
+func _charmed_physics(delta: float) -> void:
+	_contact_timer = maxf(0.0, _contact_timer - delta)
+	_charm_timer  -= delta
+	if _charm_timer <= 0.0:
+		_end_charm()
+		return
+
+	if _knockback_vel.length_squared() > 4.0:
+		_knockback_vel = _knockback_vel.lerp(Vector2.ZERO, delta * 10.0)
+		velocity = _knockback_vel
+		move_and_slide()
+		return
+
+	if not _charm_target or not is_instance_valid(_charm_target) \
+			or not _charm_target.is_in_group("enemies"):
+		_charm_target = _find_nearest_enemy()
+
+	if _charm_target and is_instance_valid(_charm_target):
+		var dir := (_charm_target.global_position - global_position).normalized()
+		velocity = dir * move_speed
+		move_and_slide()
+		if global_position.distance_to(_charm_target.global_position) < 24.0 and _contact_timer <= 0.0:
+			_contact_timer = contact_cooldown
+			if _charm_target.has_method("take_hit"):
+				_charm_target.take_hit(damage)
+	else:
+		velocity = velocity.move_toward(Vector2.ZERO, move_speed)
+		move_and_slide()
+
+	if velocity.length() > 5.0:
+		_last_dir     = velocity.normalized()
+		sprite.flip_h = velocity.x < -5.0
+		if anim_player.current_animation != "walk":
+			anim_player.play("walk")
+	queue_redraw()
+
 func _draw() -> void:
 	if _dead:
 		return
+	if is_charmed:
+		var pulse := 0.5 + 0.3 * sin(Time.get_ticks_msec() * 0.008)
+		draw_arc(Vector2.ZERO, 17.0, 0.0, TAU, 24, Color(0.35, 1.0, 0.65, pulse), 2.0)
 	var hp_ratio := float(health) / float(max_health) if max_health > 0 else 0.0
 	if hp_ratio >= 1.0:
 		return

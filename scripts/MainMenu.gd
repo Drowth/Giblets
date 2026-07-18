@@ -74,9 +74,7 @@ func _show_main() -> void:
 	_add_spacer(vbox, 6)
 
 	var start_btn := _make_button("START GAME", Color(1.0, 0.45, 0.0))
-	start_btn.pressed.connect(func():
-		get_tree().change_scene_to_file("res://scenes/Main.tscn")
-	)
+	start_btn.pressed.connect(_show_character_select)
 	vbox.add_child(start_btn)
 
 	var scores_btn := _make_button("HIGH SCORES", Color(1.0, 0.85, 0.1))
@@ -92,6 +90,65 @@ func _show_main() -> void:
 	vbox.add_child(credits_btn)
 
 	start_btn.grab_focus()
+
+func _show_character_select() -> void:
+	_clear_panel()
+
+	var overlay := ColorRect.new()
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	overlay.color = Color(0.0, 0.0, 0.0, 0.85)
+	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	_panel = overlay
+	_ui_layer.add_child(overlay)
+
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	overlay.add_child(center)
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 8)
+	center.add_child(vbox)
+
+	var title := Label.new()
+	title.text = "CHOOSE YOUR CHAMPION"
+	title.add_theme_font_size_override("font_size", 14)
+	title.add_theme_color_override("font_color", Color(1.0, 0.45, 0.0))
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(title)
+
+	_add_spacer(vbox, 2)
+
+	# id, name, colour, tagline
+	var roster: Array = [
+		["reaper", "THE REAPER", Color(0.35, 1.0, 0.65),
+			"Passive — Soul Harvest: charge through non-boss\nenemies to charm them into temporary allies."],
+		["zealot", "THE ZEALOT", Color(1.0, 0.85, 0.1),
+			"A relentless survivor with no special passive."],
+	]
+
+	for entry in roster:
+		var char_id: String = entry[0]
+		var btn := _make_button(entry[1], entry[2])
+		btn.pressed.connect(func():
+			GameState.selected_character = char_id
+			get_tree().change_scene_to_file("res://scenes/Main.tscn")
+		)
+		vbox.add_child(btn)
+
+		var desc := Label.new()
+		desc.text = entry[3]
+		desc.add_theme_font_size_override("font_size", 5)
+		desc.add_theme_color_override("font_color", Color(0.62, 0.58, 0.62))
+		desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		vbox.add_child(desc)
+
+		_add_spacer(vbox, 3)
+
+	var back_btn := _make_button("BACK", Color(0.7, 0.7, 0.7))
+	back_btn.pressed.connect(_show_main)
+	vbox.add_child(back_btn)
+	back_btn.grab_focus()
 
 func _show_options() -> void:
 	_clear_panel()

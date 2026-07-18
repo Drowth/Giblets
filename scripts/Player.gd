@@ -106,6 +106,7 @@ func _do_dash_knockback() -> void:
 	var radius       := DASH_KNOCKBACK_BASE * GameState.dash_knockback_mul
 	var force        := DASH_KNOCKBACK_FORCE * GameState.dash_knockback_mul
 	var contact_dist := 32.0  # player radius (15) + enemy radius (13) + buffer
+	var can_charm    := GameState.has_charm_passive()
 	for enemy: Node2D in get_tree().get_nodes_in_group("enemies"):
 		var diff := enemy.global_position - global_position
 		var d    := diff.length()
@@ -114,6 +115,10 @@ func _do_dash_knockback() -> void:
 			_dash_hit_set.append(enemy)
 			if enemy.has_method("apply_knockback"):
 				enemy.apply_knockback(dir, force)
+		# The Reaper's Soul Harvest passive: charge through a non-boss enemy to
+		# convert it into a temporary ally that fights the horde.
+		if can_charm and d < contact_dist and enemy.has_method("charm"):
+			enemy.charm()
 		# Every frame: push overlapping enemies physically outside contact radius
 		if d < contact_dist and d > 0.01:
 			enemy.global_position += dir * (contact_dist - d)

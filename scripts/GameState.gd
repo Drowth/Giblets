@@ -14,6 +14,13 @@ signal shake_requested(strength: float, duration: float)
 var crt_enabled: bool = true
 var crt_affects_enemies: bool = false
 
+# Selected playable character. Persists across runs (not cleared by _reset).
+# "reaper" has the Soul Harvest passive (dash-charm); other characters do not.
+var selected_character: String = "reaper"
+
+func has_charm_passive() -> bool:
+	return selected_character == "reaper"
+
 var score: int = 0
 var enemies_killed: int = 0
 
