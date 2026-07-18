@@ -225,17 +225,67 @@ func _build_roulette(vbox: VBoxContainer) -> void:
 	vbox.add_child(banner)
 	_death_transients.append(banner)
 
-	var slot := Label.new()
-	slot.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	slot.add_theme_font_size_override("font_size", 8)
-	slot.custom_minimum_size = Vector2(140, 12)
-	slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	slot.process_mode = Node.PROCESS_MODE_ALWAYS
-	vbox.add_child(slot)
-	_death_transients.append(slot)
-	_animate_roulette(slot, pool, won)
+	var card := _make_roulette_card(won)
+	vbox.add_child(card["root"])
+	_death_transients.append(card["root"])
+	_animate_roulette(card, pool, won)
 
-func _animate_roulette(slot: Label, pool: Array, won: Dictionary) -> void:
+# A non-interactive upgrade card for the roulette result. The wheel flickers
+# through names in the title slot; when it lands, the rarity + description are
+# revealed inside the card so the player can read what the new upgrade does.
+func _make_roulette_card(won: Dictionary) -> Dictionary:
+	var rarity: String = won.get("rarity", "common")
+	var rarity_color: Color = UpgradeData.RARITY_COLORS.get(rarity, Color.WHITE)
+
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(150, 0)
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.process_mode = Node.PROCESS_MODE_ALWAYS
+
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.08, 0.06, 0.11)
+	style.border_color = rarity_color
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(1)
+	style.content_margin_left = 4
+	style.content_margin_right = 4
+	style.content_margin_top = 3
+	style.content_margin_bottom = 3
+	panel.add_theme_stylebox_override("panel", style)
+
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 1)
+	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(col)
+
+	var name_lbl := Label.new()
+	name_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_lbl.add_theme_font_size_override("font_size", 8)
+	name_lbl.custom_minimum_size = Vector2(140, 12)
+	name_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.add_child(name_lbl)
+
+	var rarity_lbl := Label.new()
+	rarity_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	rarity_lbl.add_theme_font_size_override("font_size", 5)
+	rarity_lbl.add_theme_color_override("font_color", rarity_color)
+	rarity_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	rarity_lbl.visible = false
+	col.add_child(rarity_lbl)
+
+	var desc_lbl := Label.new()
+	desc_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	desc_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	desc_lbl.add_theme_font_size_override("font_size", 5)
+	desc_lbl.add_theme_color_override("font_color", Color(0.78, 0.75, 0.73))
+	desc_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	desc_lbl.visible = false
+	col.add_child(desc_lbl)
+
+	return {"root": panel, "name": name_lbl, "rarity": rarity_lbl, "desc": desc_lbl}
+
+func _animate_roulette(card: Dictionary, pool: Array, won: Dictionary) -> void:
+	var slot: Label = card["name"]
 	var won_color: Color = UpgradeData.RARITY_COLORS.get(won["rarity"], Color.WHITE)
 	for i in ROULETTE_TICKS:
 		var face: Dictionary = pool.pick_random()
@@ -252,10 +302,27 @@ func _animate_roulette(slot: Label, pool: Array, won: Dictionary) -> void:
 			return
 	slot.text = "★ %s ★" % str(won["name"]).to_upper()
 	slot.add_theme_color_override("font_color", won_color)
+	_reveal_card_details(card, won)
 	if won["rarity"] in ["epic", "legendary"]:
 		Sfx.play(NEW_HIGH_SCORE_SOUND, -4.0)
 	else:
 		Sfx.play(COIN_SOUND, -6.0)
+
+# Fade in the rarity tag + description once the wheel has settled on a winner.
+func _reveal_card_details(card: Dictionary, won: Dictionary) -> void:
+	var rarity_lbl: Label = card["rarity"]
+	var desc_lbl: Label = card["desc"]
+	if not is_instance_valid(rarity_lbl) or not is_instance_valid(desc_lbl):
+		return
+	rarity_lbl.text = str(won.get("rarity", "common")).to_upper()
+	desc_lbl.text = str(won.get("description", ""))
+	rarity_lbl.modulate.a = 0.0
+	desc_lbl.modulate.a = 0.0
+	rarity_lbl.visible = true
+	desc_lbl.visible = true
+	var tw := desc_lbl.create_tween()
+	tw.tween_property(rarity_lbl, "modulate:a", 1.0, 0.25)
+	tw.parallel().tween_property(desc_lbl, "modulate:a", 1.0, 0.35)
 
 func _build_name_entry(vbox: VBoxContainer) -> void:
 	var name_section := VBoxContainer.new()
