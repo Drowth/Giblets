@@ -11,6 +11,8 @@ const DASH_COOLDOWN_BASE:   float = 3.0
 const DASH_KNOCKBACK_BASE:  float = 65.0
 const DASH_KNOCKBACK_FORCE: float = 550.0
 
+const PLAYER_SIZE_MUL := 1.1  # 10% larger than each character's base sprite scale
+
 const DASH_SOUND  := "res://assets/sfx/game/dash.wav"
 const WOOSH_SOUND := "res://assets/sfx/combat/woosh.wav"
 const HURT_SOUND  := "res://assets/sfx/combat/player_hurt.wav"
@@ -401,7 +403,7 @@ func _flash_damage() -> void:
 # the 8-directional AnimatedSprite2D; static ones set the Sprite2D texture.
 func _apply_character_visuals() -> void:
 	var character := CharacterData.get_selected()
-	var s: float = character["sprite_scale"]
+	var s: float = character["sprite_scale"] * PLAYER_SIZE_MUL
 	_animated_mode = character.get("animated", false)
 	if _animated_mode:
 		sprite.hide()

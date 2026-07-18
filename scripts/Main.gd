@@ -60,6 +60,8 @@ const CYCLOPS_STATS := {"hp": 75.0, "spd": 28.0, "cap":  90.0, "dmg": 12.0, "xp"
 const IMP_STATS     := {"hp": 12.0, "spd": 70.0, "cap": 130.0, "dmg":  7.0, "xp": 14.0}
 const CHARGER_STATS := {"hp": 35.0, "spd": 40.0, "cap": 100.0, "dmg": 18.0, "xp": 30.0}
 
+const PLAYER_Z_INDEX := 10  # above enemy sprites/corpses (z 0), below damage numbers (z 20)
+
 var _crt_rect:            ColorRect   = null
 var _enemies_canvas:      CanvasLayer = null
 var _pause_screen:        CanvasLayer = null
@@ -281,6 +283,13 @@ func _setup_enemies_canvas() -> void:
 	_enemies_canvas.layer                = 150 if not Settings.crt_affects_enemies else 50
 	add_child(_enemies_canvas)
 	enemies_container.reparent(_enemies_canvas)
+	# Keep the player on the same canvas as the enemies, drawn above their
+	# sprites and lingering corpses (below damage numbers at z 20) so nothing
+	# occludes it. Sharing the canvas keeps it in the enemies' CRT bucket.
+	var player := get_tree().get_first_node_in_group("player")
+	if player and player is Node2D:
+		(player as Node2D).reparent(_enemies_canvas)
+		(player as Node2D).z_index = PLAYER_Z_INDEX
 
 func _setup_damage_numbers() -> void:
 	# Lives on the enemies canvas so numbers render above enemy sprites
