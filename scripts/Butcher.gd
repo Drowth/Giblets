@@ -130,8 +130,7 @@ func _physics_process(delta: float) -> void:
 				_state_timer = randf_range(ORBIT_DURATION_MIN, ORBIT_DURATION_MAX)
 				_orbit_sign = -_orbit_sign
 	move_and_slide()
-	global_position.x = clampf(global_position.x, 30.0, GameState.WORLD_SIZE.x - 30.0)
-	global_position.y = clampf(global_position.y, 30.0, GameState.WORLD_SIZE.y - 30.0)
+	global_position = GameState.clamp_to_stage_bounds(global_position, 30.0)
 
 	if velocity.length() > 5.0:
 		_last_dir = velocity.normalized()
@@ -158,8 +157,10 @@ func _physics_process(delta: float) -> void:
 				_player.take_damage(damage)
 
 func _hit_wall() -> bool:
-	return (global_position.x <= 31.0 or global_position.x >= GameState.WORLD_SIZE.x - 31.0
-		or global_position.y <= 31.0 or global_position.y >= GameState.WORLD_SIZE.y - 31.0)
+	if GameState.stage_bounds_polygon.is_empty():
+		return (global_position.x <= 31.0 or global_position.x >= GameState.WORLD_SIZE.x - 31.0
+			or global_position.y <= 31.0 or global_position.y >= GameState.WORLD_SIZE.y - 31.0)
+	return global_position.distance_to(GameState.clamp_to_stage_bounds(global_position, 31.0)) > 0.5
 
 func _draw() -> void:
 	if _dead:

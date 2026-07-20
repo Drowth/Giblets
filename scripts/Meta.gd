@@ -56,6 +56,7 @@ const TALENTS: Dictionary = {
 var giblets: int = 0
 var ranks: Dictionary = {}               # talent id -> rank purchased
 var selected_character: String = "ghoul"
+var selected_stage: String = "default"
 var unlocked_characters: Array = ["ghoul"]
 var unlocked_upgrades: Array = []        # roulette-won upgrade ids (UpgradeData locked_by_default pool)
 
@@ -186,6 +187,11 @@ func select_character(id: String) -> void:
 		selected_character = id
 		_save()
 
+func select_stage(id: String) -> void:
+	if id in StageData.STAGES:
+		selected_stage = id
+		_save()
+
 # ---------------------------------------------------------------------------
 # End-of-run upgrade roulette
 # ---------------------------------------------------------------------------
@@ -233,6 +239,7 @@ func _save() -> void:
 			"giblets": giblets,
 			"ranks": ranks,
 			"selected_character": selected_character,
+			"selected_stage": selected_stage,
 			"unlocked_characters": unlocked_characters,
 			"unlocked_upgrades": unlocked_upgrades,
 		})
@@ -265,3 +272,6 @@ func _load() -> void:
 				unlocked_characters.append("ghoul")
 			if selected_character not in unlocked_characters:
 				selected_character = "ghoul"
+			selected_stage = str(data.get("selected_stage", "default"))
+			if selected_stage not in StageData.STAGES:
+				selected_stage = "default"

@@ -13,7 +13,7 @@ const DASH_KNOCKBACK_FORCE: float = 550.0
 
 const PLAYER_SIZE_MUL := 1.1  # 10% larger than each character's base sprite scale
 
-const WOOSH_SOUND := "res://assets/sfx/combat/woosh.wav"
+const DASH_SOUND := "res://assets/sfx/game/dash.wav"
 const HURT_SOUND  := "res://assets/sfx/combat/player_hurt.wav"
 
 @onready var attack_timer:  Timer            = $AttackTimer
@@ -56,12 +56,23 @@ func _ready() -> void:
 	GameState.shake_requested.connect(shake)
 	GameState.second_wind_triggered.connect(_on_second_wind)
 	GameState.blood_nova_requested.connect(_blood_nova)
-	camera.limit_right  = int(GameState.WORLD_SIZE.x)
-	camera.limit_bottom = int(GameState.WORLD_SIZE.y)
+	refresh_camera_limits()
 	camera.zoom = Vector2(0.3, 0.3)
 	_build_animations()
 	if not _animated_mode:
 		anim_player.play("idle")
+
+# Called at _ready() (rectangular WORLD_SIZE default, since Main hasn't set
+# any stage bounds yet — Player is a child, so its _ready() runs first) and
+# again by Main._setup_stage_floor() once a non-rectangular stage's bounds
+# are known. Camera2D can only clip to a rectangle, so this uses the stage
+# bounds' axis-aligned bounding box, not the polygon itself.
+func refresh_camera_limits() -> void:
+	var r := GameState.stage_bounds_rect()
+	camera.limit_left   = int(r.position.x)
+	camera.limit_top    = int(r.position.y)
+	camera.limit_right  = int(r.position.x + r.size.x)
+	camera.limit_bottom = int(r.position.y + r.size.y)
 
 func _add_light() -> void:
 	var light := PointLight2D.new()
@@ -138,7 +149,7 @@ func _try_dash() -> void:
 	_slow_timer  = 0.0
 	is_invincible = true
 	iframes_timer.start(_dash_timer + 0.05)
-	Sfx.play(WOOSH_SOUND, -6.0, 0.08)
+	Sfx.play(DASH_SOUND, -6.0, 0.08)
 	for _i in 5:
 		_spawn_dash_dust()
 	# Grave Robber: the dash rips every XP orb on the field loose
@@ -204,8 +215,7 @@ func _physics_process(delta: float) -> void:
 			_dash_active = false
 		velocity = _dash_dir * DASH_SPEED
 		move_and_slide()
-		global_position.x = clampf(global_position.x, 20.0, GameState.WORLD_SIZE.x - 20.0)
-		global_position.y = clampf(global_position.y, 20.0, GameState.WORLD_SIZE.y - 20.0)
+		global_position = GameState.clamp_to_stage_bounds(global_position, 20.0)
 		if _animated_mode:
 			_play_anim("roll")
 		queue_redraw()
@@ -235,8 +245,7 @@ func _physics_process(delta: float) -> void:
 	else:
 		velocity = velocity.move_toward(Vector2.ZERO, effective_speed)
 	move_and_slide()
-	global_position.x = clampf(global_position.x, 20.0, GameState.WORLD_SIZE.x - 20.0)
-	global_position.y = clampf(global_position.y, 20.0, GameState.WORLD_SIZE.y - 20.0)
+	global_position = GameState.clamp_to_stage_bounds(global_position, 20.0)
 
 	var moving := velocity.length() > 5.0
 	if moving:

@@ -2,6 +2,62 @@ extends Node
 
 const WORLD_SIZE := Vector2(3840, 2160)
 
+# Non-rectangular stages (e.g. City's isometric diamond ground) confine
+# movement/spawns to this convex polygon instead of the WORLD_SIZE rect.
+# Empty = rectangular WORLD_SIZE bounds (the default). Set once per run by
+# Main._setup_stage_floor(); world-space, vertices in a simple (non-crossing)
+# winding order.
+var stage_bounds_polygon: PackedVector2Array = PackedVector2Array()
+var _stage_bounds_inset_cache: Dictionary = {}
+
+func set_stage_bounds(poly: PackedVector2Array) -> void:
+	stage_bounds_polygon = poly
+	_stage_bounds_inset_cache.clear()
+
+# Axis-aligned bounding rect of the current stage bounds — used for camera
+# limits (Camera2D can't clip to an arbitrary polygon).
+func stage_bounds_rect() -> Rect2:
+	if stage_bounds_polygon.is_empty():
+		return Rect2(Vector2.ZERO, WORLD_SIZE)
+	var min_pt := stage_bounds_polygon[0]
+	var max_pt := stage_bounds_polygon[0]
+	for p in stage_bounds_polygon:
+		min_pt = min_pt.min(p)
+		max_pt = max_pt.max(p)
+	return Rect2(min_pt, max_pt - min_pt)
+
+# Clamps pos to stay `margin` px inside the stage bounds — a rectangle clamp
+# when there's no polygon (identical to the old WORLD_SIZE clampf calls), or
+# a nearest-point-on-convex-polygon clamp when one is set.
+func clamp_to_stage_bounds(pos: Vector2, margin: float = 0.0) -> Vector2:
+	if stage_bounds_polygon.is_empty():
+		return Vector2(
+			clampf(pos.x, margin, WORLD_SIZE.x - margin),
+			clampf(pos.y, margin, WORLD_SIZE.y - margin)
+		)
+	var poly := _inset_stage_bounds(margin)
+	if poly.size() < 3 or Geometry2D.is_point_in_polygon(pos, poly):
+		return pos
+	var closest := poly[poly.size() - 1]
+	var best_dist := INF
+	for i in poly.size():
+		var a: Vector2 = poly[i]
+		var b: Vector2 = poly[(i + 1) % poly.size()]
+		var c: Vector2 = Geometry2D.get_closest_point_to_segment(pos, a, b)
+		var d := pos.distance_squared_to(c)
+		if d < best_dist:
+			best_dist = d
+			closest = c
+	return closest
+
+func _inset_stage_bounds(margin: float) -> PackedVector2Array:
+	if margin <= 0.0:
+		return stage_bounds_polygon
+	if not _stage_bounds_inset_cache.has(margin):
+		var offset := Geometry2D.offset_polygon(stage_bounds_polygon, -margin)
+		_stage_bounds_inset_cache[margin] = offset[0] if not offset.is_empty() else stage_bounds_polygon
+	return _stage_bounds_inset_cache[margin]
+
 signal xp_changed(current_xp: int, required_xp: int)
 signal level_changed(new_level: int)
 signal health_changed(current_hp: int, max_hp: int)

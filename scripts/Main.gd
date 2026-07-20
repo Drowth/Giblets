@@ -29,17 +29,17 @@ const MAX_LIVE_ENEMIES     := 130
 # works; damage grows slowly because volume is the real threat.
 const HP_SCALE_LIN  := 0.12    # per minute
 const HP_SCALE_QUAD := 0.020   # per minute², the mid/late squeeze — puts
-                               # influx/DPS parity near minute 15 for a
-                               # median build (BalanceSim-tuned)
+							   # influx/DPS parity near minute 15 for a
+							   # median build (BalanceSim-tuned)
 const SPEED_SCALE   := 6.0     # px/s gained per minute
 const DMG_SCALE     := 0.18    # per minute
 const XP_TIME_SCALE := 0.15    # per minute — keeps mid-game leveling on pace
-                               # while the quadratic requirement still wins late
+							   # while the quadratic requirement still wins late
 
 # --- Post-20-minute death ramp (§3): a wall, not a slope. Runs must end.
 const OVERTIME_START := 18.0   # minutes
 const OVERTIME_QUAD  := 0.60   # (m-18)² coefficient on enemy HP and damage —
-                               # steep enough to end even snowballed builds by ~24
+							   # steep enough to end even snowballed builds by ~24
 
 # --- Boss (§4): HP derived from the DPS budget to force a 15-25 s TTK for
 # an on-curve build. Butcher trades 20% HP for its charge threat.
@@ -104,6 +104,7 @@ func _ready() -> void:
 	if level_up_screen:
 		level_up_screen.connect("upgrade_chosen", _on_upgrade_chosen)
 		level_up_screen.hide()
+	_setup_stage_floor()
 	_setup_blood_smears()
 	_setup_crt()
 	_setup_enemies_canvas()
@@ -256,6 +257,69 @@ func _apply_meta_start_conditions() -> void:
 	if Meta.has_head_start():
 		GameState.add_xp(GameState.xp_to_next_level)
 
+func _setup_stage_floor() -> void:
+	GameState.set_stage_bounds(PackedVector2Array())  # reset; autoload persists across runs
+	var stage: Dictionary = StageData.STAGES.get(Meta.selected_stage, {})
+	var scene_path: String = stage.get("scene_path", "")
+	if scene_path == "":
+		return  # keep the procedural WorldBackground + rectangular WORLD_SIZE bounds
+	# The isometric Ground tiles form a diamond, which only covers ~half of
+	# its own bounding rectangle — leave the procedural WorldBackground
+	# (Background.gd) in place underneath so the diamond's corner gaps show
+	# textured stone instead of the flat near-black backdrop ColorRect.
+	var stage_root := (load(scene_path) as PackedScene).instantiate()
+	stage_root.name = "StageGround"
+	stage_root.z_index = -8  # draws above WorldBackground's -9 and the flat Background ColorRect's -10
+	add_child(stage_root)
+	_center_stage_ground(stage_root)
+	var player := get_tree().get_first_node_in_group("player")
+	if player and player.has_method("refresh_camera_limits"):
+		player.refresh_camera_limits()
+	# Both drew themselves at the old (smaller, origin-anchored) WORLD_SIZE
+	# rect during their own _ready() — which runs before Main's, so before
+	# stage bounds existed. Resize/redraw now that the real bounds are known.
+	var flat_bg := get_node_or_null("Background") as ColorRect
+	if flat_bg:
+		var bounds := GameState.stage_bounds_rect()
+		flat_bg.position = bounds.position
+		flat_bg.size = bounds.size
+	var world_bg := get_node_or_null("WorldBackground")
+	if world_bg:
+		world_bg.queue_redraw()
+
+# Stage art is painted around its own local origin, not the WORLD_SIZE play
+# rectangle, so recenter it using the Ground layer's own used-cell bounds —
+# stays correct if the art is ever repainted/extended. Also publishes the
+# ground's diamond footprint as GameState.stage_bounds_polygon so movement,
+# spawning, and the camera all confine themselves to the actual painted
+# shape instead of the (now much bigger, mostly-empty) WORLD_SIZE rect.
+func _center_stage_ground(stage_root: Node) -> void:
+	var ground := stage_root.get_node_or_null("Ground") as TileMapLayer
+	if ground == null:
+		return
+	var used_rect := ground.get_used_rect()
+	if used_rect.size == Vector2i.ZERO:
+		return
+	# position, +x edge, +y edge, end (opposite corner) — for a diamond-down
+	# isometric layout these are the top/right/left/bottom vertices in some
+	# order; reordered below into a non-crossing loop.
+	var corners: Array[Vector2] = [
+		ground.map_to_local(used_rect.position),
+		ground.map_to_local(used_rect.position + Vector2i(used_rect.size.x, 0)),
+		ground.map_to_local(used_rect.position + Vector2i(0, used_rect.size.y)),
+		ground.map_to_local(used_rect.end),
+	]
+	var min_pt := corners[0]
+	var max_pt := corners[0]
+	for c in corners:
+		min_pt = min_pt.min(c)
+		max_pt = max_pt.max(c)
+	var ground_center := (min_pt + max_pt) / 2.0
+	var offset := GameState.WORLD_SIZE / 2.0 - ground_center
+	stage_root.position = offset
+	var bounds: Array[Vector2] = [corners[0] + offset, corners[1] + offset, corners[3] + offset, corners[2] + offset]
+	GameState.set_stage_bounds(PackedVector2Array(bounds))
+
 func _setup_blood_smears() -> void:
 	var node := BLOOD_SMEARS_SCRIPT.new()
 	add_child(node)
@@ -386,10 +450,12 @@ func _get_screen_center() -> Vector2:
 	var vp_half := get_viewport().get_visible_rect().size / 2.0
 	if not player:
 		return GameState.WORLD_SIZE / 2.0
-	return Vector2(
-		clampf(player.global_position.x, vp_half.x, GameState.WORLD_SIZE.x - vp_half.x),
-		clampf(player.global_position.y, vp_half.y, GameState.WORLD_SIZE.y - vp_half.y)
-	)
+	if GameState.stage_bounds_polygon.is_empty():
+		return Vector2(
+			clampf(player.global_position.x, vp_half.x, GameState.WORLD_SIZE.x - vp_half.x),
+			clampf(player.global_position.y, vp_half.y, GameState.WORLD_SIZE.y - vp_half.y)
+		)
+	return GameState.clamp_to_stage_bounds(player.global_position, minf(vp_half.x, vp_half.y))
 
 func _spawn_wave() -> void:
 	var live := get_tree().get_nodes_in_group("enemies").size()
@@ -463,8 +529,11 @@ func _edge_pos(screen_center: Vector2) -> Vector2:
 		1: pos = Vector2(randf_range(screen_center.x - half.x, screen_center.x + half.x), screen_center.y + half.y + margin)
 		2: pos = Vector2(screen_center.x - half.x - margin, randf_range(screen_center.y - half.y, screen_center.y + half.y))
 		_: pos = Vector2(screen_center.x + half.x + margin, randf_range(screen_center.y - half.y, screen_center.y + half.y))
-	pos.x = clampf(pos.x, 0.0, GameState.WORLD_SIZE.x)
-	pos.y = clampf(pos.y, 0.0, GameState.WORLD_SIZE.y)
+	if GameState.stage_bounds_polygon.is_empty():
+		pos.x = clampf(pos.x, 0.0, GameState.WORLD_SIZE.x)
+		pos.y = clampf(pos.y, 0.0, GameState.WORLD_SIZE.y)
+	else:
+		pos = GameState.clamp_to_stage_bounds(pos)
 	return pos
 
 # --- Bosses ---------------------------------------------------------------

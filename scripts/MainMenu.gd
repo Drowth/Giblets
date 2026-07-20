@@ -96,6 +96,10 @@ func _show_main() -> void:
 	chars_btn.pressed.connect(_show_characters)
 	vbox.add_child(chars_btn)
 
+	var stage_btn := _make_button("STAGE", Color(0.45, 0.70, 0.95), false, 9)
+	stage_btn.pressed.connect(_show_stages)
+	vbox.add_child(stage_btn)
+
 	var talents_btn := _make_button("TALENTS  (%d giblets)" % Meta.giblets, Color(0.95, 0.35, 0.30), false, 9)
 	talents_btn.pressed.connect(_show_talents)
 	vbox.add_child(talents_btn)
@@ -424,6 +428,128 @@ func _make_character_card(id: String) -> Button:
 		else:
 			Sfx.play(DISALLOW_SOUND, -8.0)
 	)
+
+	return card
+
+func _show_stages() -> void:
+	_clear_panel()
+
+	var overlay := ColorRect.new()
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	overlay.color = Color(0.0, 0.0, 0.0, 0.88)
+	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	_panel = overlay
+	_ui_layer.add_child(overlay)
+
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	overlay.add_child(center)
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 4)
+	center.add_child(vbox)
+
+	var title := Label.new()
+	title.text = "— STAGE —"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 12)
+	title.add_theme_color_override("font_color", Color(0.45, 0.70, 0.95))
+	vbox.add_child(title)
+
+	_add_spacer(vbox, 2)
+
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vbox.add_child(row)
+
+	for id: String in StageData.STAGES:
+		row.add_child(_make_stage_card(id))
+
+	_add_spacer(vbox, 2)
+
+	var back_btn := _make_button("BACK", Color(0.7, 0.7, 0.7), true)
+	var back_wrap := CenterContainer.new()
+	back_wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	back_wrap.add_child(back_btn)
+	vbox.add_child(back_wrap)
+	back_btn.pressed.connect(_show_main)
+	back_btn.grab_focus()
+
+func _make_stage_card(id: String) -> Button:
+	var info: Dictionary = StageData.STAGES[id]
+	var selected := Meta.selected_stage == id
+
+	var border_color := Color(0.4, 0.9, 0.4) if selected else Color(0.7, 0.65, 0.7)
+	var status_text := "SELECTED" if selected else "SELECT"
+	var status_color := border_color
+
+	var card := Button.new()
+	card.custom_minimum_size = Vector2(80, 60)
+	var norm := StyleBoxFlat.new()
+	norm.bg_color = Color(0.07, 0.03, 0.03)
+	norm.border_color = border_color
+	norm.set_border_width_all(2)
+	norm.set_corner_radius_all(3)
+	card.add_theme_stylebox_override("normal", norm)
+	var hover := norm.duplicate() as StyleBoxFlat
+	hover.bg_color = Color(0.15, 0.06, 0.02)
+	hover.border_color = border_color.lightened(0.25)
+	card.add_theme_stylebox_override("hover", hover)
+	card.add_theme_stylebox_override("focus", hover)
+	var pressed_sb := norm.duplicate() as StyleBoxFlat
+	pressed_sb.border_color = border_color.darkened(0.2)
+	card.add_theme_stylebox_override("pressed", pressed_sb)
+
+	var inner := VBoxContainer.new()
+	inner.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	inner.offset_left = 3
+	inner.offset_right = -3
+	inner.offset_top = 3
+	inner.offset_bottom = -3
+	inner.add_theme_constant_override("separation", 2)
+	inner.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.add_child(inner)
+
+	var name_lbl := Label.new()
+	name_lbl.text = info["name"]
+	name_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_lbl.add_theme_font_size_override("font_size", 6)
+	name_lbl.add_theme_color_override("font_color", Color(0.95, 0.92, 0.9))
+	name_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	inner.add_child(name_lbl)
+
+	var desc_lbl := Label.new()
+	desc_lbl.text = info["desc"]
+	desc_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	desc_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	desc_lbl.add_theme_font_size_override("font_size", 5)
+	desc_lbl.add_theme_color_override("font_color", Color(0.65, 0.6, 0.65))
+	desc_lbl.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	desc_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	inner.add_child(desc_lbl)
+
+	var status_lbl := Label.new()
+	status_lbl.text = status_text
+	status_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	status_lbl.add_theme_font_size_override("font_size", 5)
+	status_lbl.add_theme_color_override("font_color", status_color)
+	status_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	inner.add_child(status_lbl)
+
+	card.mouse_entered.connect(func():
+		if not card.disabled:
+			Sfx.play(HOVER_SOUND, -9.0, 0.03)
+	)
+	card.pressed.connect(func():
+		if selected:
+			return
+		Meta.select_stage(id)
+		Sfx.play(SELECT_SOUND, -6.0)
+		_show_stages()
+	)
+
 	return card
 
 func _character_summary(info: Dictionary) -> String:
