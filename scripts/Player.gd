@@ -4,6 +4,7 @@ const PROJECTILE_SCENE = preload("res://scenes/Projectile.tscn")
 
 const BLOOD_DROP      = preload("res://scripts/BloodTrailDrop.gd")
 const DASH_DUST       = preload("res://scripts/DashDust.gd")
+const MUZZLE_FLASH    = preload("res://scripts/MuzzleFlash.gd")
 
 const DASH_SPEED:           float = 1200.0
 const DASH_DURATION_BASE:   float = 0.20
@@ -39,6 +40,7 @@ var _dash_timer:      float    = 0.0
 var _dash_cooldown:   float    = 0.0
 var _dash_dir:        Vector2  = Vector2.RIGHT
 var _dash_hit_set:    Array    = []
+var _chain_fired:     bool     = false  # Judgment Chain: fires once per dash
 var _last_move_dir:   Vector2  = Vector2.DOWN
 var _shake_strength:  float    = 0.0
 var _shake_timer:     float    = 0.0
@@ -55,7 +57,6 @@ func _ready() -> void:
 	GameState.game_over.connect(_on_game_over)
 	GameState.shake_requested.connect(shake)
 	GameState.second_wind_triggered.connect(_on_second_wind)
-	GameState.blood_nova_requested.connect(_blood_nova)
 	refresh_camera_limits()
 	camera.zoom = Vector2(0.3, 0.3)
 	_build_animations()
@@ -141,6 +142,7 @@ func _try_dash() -> void:
 	_dash_dir = _last_move_dir
 	_facing = _dir_to_compass(_dash_dir)
 	_dash_hit_set.clear()
+	_chain_fired  = false
 	_dash_active  = true
 	_dash_timer   = DASH_DURATION_BASE * GameState.dash_distance_mul
 	_dash_cooldown = DASH_COOLDOWN_BASE * GameState.dash_cooldown_mul
@@ -150,6 +152,7 @@ func _try_dash() -> void:
 	is_invincible = true
 	iframes_timer.start(_dash_timer + 0.05)
 	Sfx.play(DASH_SOUND, -6.0, 0.08)
+	GameState.rumble(0.15, 0.35, 0.12)
 	for _i in 5:
 		_spawn_dash_dust()
 	# Grave Robber: the dash rips every XP orb on the field loose
@@ -189,6 +192,11 @@ func _do_dash_knockback() -> void:
 				# into a temporary Bone Sentry
 				if Meta.selected_character == "necromancer" and enemy.get("_dead") and not enemy.is_in_group("bosses"):
 					_spawn_temp_sentry()
+			# Judgment Chain (Paladin): the first enemy the dash touches
+			# unleashes a lightning bolt that arcs onward to nearby enemies
+			if GameState.dash_chain_jumps > 0 and not _chain_fired and not enemy.get("_dead"):
+				_chain_fired = true
+				_fire_chain_zap(enemy)
 		# Every frame: push overlapping enemies physically outside contact radius
 		if d < contact_dist and d > 0.01:
 			enemy.global_position += dir * (contact_dist - d)
@@ -201,6 +209,51 @@ func _spawn_temp_sentry() -> void:
 	GameState.sentry_count += 1
 	GameState.temp_sentry_count += 1
 	GameState.temp_sentry_summoned.emit(12.0)
+
+# Judgment Chain (Paladin): the enemy the dash makes contact with is zapped,
+# then the bolt arcs onward to the nearest not-yet-zapped enemy within
+# dash_chain_range, up to dash_chain_jumps additional links.
+func _fire_chain_zap(start_enemy: Node2D) -> void:
+	var dmg := int(GameState.projectile_damage * GameState.attack_damage_mul() * GameState.dash_chain_damage_pct)
+	var zapped: Array = [start_enemy]
+	_spawn_zap_visual(global_position, start_enemy.global_position)
+	_zap_hit(start_enemy, dmg)
+	var current := start_enemy
+	for _i in GameState.dash_chain_jumps:
+		var next_enemy := _find_chain_target(current, zapped)
+		if not next_enemy:
+			break
+		_spawn_zap_visual(current.global_position, next_enemy.global_position)
+		_zap_hit(next_enemy, dmg)
+		zapped.append(next_enemy)
+		current = next_enemy
+
+func _zap_hit(enemy: Node2D, dmg: int) -> void:
+	if not enemy.has_method("take_hit"):
+		return
+	enemy.take_hit(dmg)
+	GameState.damage_dealt += dmg
+	var dn := get_tree().get_first_node_in_group("damage_numbers")
+	if dn:
+		dn.pop(enemy.global_position, dmg, false)
+
+func _find_chain_target(from: Node2D, exclude: Array) -> Node2D:
+	var best: Node2D = null
+	var best_dist := GameState.dash_chain_range
+	for enemy: Node2D in get_tree().get_nodes_in_group("enemies"):
+		if enemy in exclude or enemy.get("_dead"):
+			continue
+		var d := from.global_position.distance_to(enemy.global_position)
+		if d < best_dist:
+			best_dist = d
+			best = enemy
+	return best
+
+func _spawn_zap_visual(from_pos: Vector2, to_pos: Vector2) -> void:
+	var zap := Node2D.new()
+	zap.set_script(preload("res://scripts/LightningZap.gd"))
+	get_tree().current_scene.add_child(zap)
+	zap.setup(from_pos, to_pos)
 
 func _physics_process(delta: float) -> void:
 	# Dash active — override all movement
@@ -290,6 +343,7 @@ func _fire() -> void:
 	var base_dir := to_nearest.normalized() if to_nearest.length_squared() > 0.0001 else _last_move_dir
 	var count := GameState.projectile_count
 	var dmg := int(GameState.projectile_damage * GameState.attack_damage_mul())
+	_spawn_muzzle_flash(base_dir)
 	for i in count:
 		var proj: Area2D = PROJECTILE_SCENE.instantiate()
 		_proj_container.add_child(proj)
@@ -373,6 +427,7 @@ func take_damage(amount: int) -> void:
 	Sfx.play(HURT_SOUND, -4.0, 0.1)
 	_flash_damage()
 	shake(30.0, 0.18)
+	GameState.rumble(0.4, 0.7, 0.2)
 	GameState.hitstop(0.05)
 	# Tantrum nova — but not on the hit that killed us
 	if GameState.game_active and GameState.hurt_nova_level > 0:
@@ -380,8 +435,7 @@ func take_damage(amount: int) -> void:
 
 # Shared AoE-nova routine: damage + knockback everything in radius, an
 # optional heal from a fraction of the damage dealt, and the expanding-ring
-# visual. Used by Tantrum (retaliatory, on taking a hit) and Exsanguinate
-# (proactive, every 8th kill) — same shape, different trigger/numbers/tint.
+# visual. Used by Tantrum (retaliatory, on taking a hit).
 func _nova(radius: float, dmg: int, knockback: float, heal_pct: float,
 		outer_color: Color, inner_color: Color) -> void:
 	var dn := get_tree().get_first_node_in_group("damage_numbers")
@@ -418,14 +472,6 @@ func _hurt_nova() -> void:
 	_nova(HURT_NOVA_RADIUS, dmg, HURT_NOVA_KNOCKBACK, 0.0,
 		Color(1.0, 0.45, 0.0), Color(1.0, 0.75, 0.1))
 
-# Exsanguinate (Vampire): every 8th kill detonates a blood nova, healing a
-# quarter of the damage it deals.
-const BLOOD_NOVA_RADIUS    := 130.0
-const BLOOD_NOVA_KNOCKBACK := 420.0
-func _blood_nova() -> void:
-	var dmg := int(GameState.projectile_damage * GameState.attack_damage_mul() * 1.2)
-	_nova(BLOOD_NOVA_RADIUS, dmg, BLOOD_NOVA_KNOCKBACK, 0.25,
-		Color(0.75, 0.05, 0.05), Color(0.4, 0.0, 0.05))
 
 # Corpse tint: full dark red for the static sprite; softer for the animated
 # wizard so the Die animation stays readable.
@@ -459,6 +505,8 @@ func _apply_character_visuals() -> void:
 			anim_sprite.sprite_frames = WizardFrames.get_reaper_frames()
 		elif Meta.selected_character == "necromancer":
 			anim_sprite.sprite_frames = WizardFrames.get_necromancer_frames()
+		elif Meta.selected_character == "paladin":
+			anim_sprite.sprite_frames = WizardFrames.get_paladin_frames()
 		else:
 			anim_sprite.sprite_frames = WizardFrames.get_frames()
 		anim_sprite.scale = Vector2(s, s)
@@ -495,8 +543,17 @@ func _on_second_wind() -> void:
 	iframes_timer.start(2.0)
 	Sfx.play(HURT_SOUND, -2.0, 0.0)
 	shake(50.0, 0.3)
+	GameState.rumble(0.75, 1.0, 0.35)
 	GameState.hitstop(0.12)
 	_flash_damage()
+
+func _spawn_muzzle_flash(dir: Vector2) -> void:
+	var flash := Node2D.new()
+	flash.set_script(MUZZLE_FLASH)
+	get_parent().add_child(flash)
+	# Sit the flash a little in front of the player, along the fire direction.
+	flash.global_position = global_position + dir.normalized() * 14.0
+	flash.setup(dir)
 
 func _spawn_dash_dust() -> void:
 	var dust := Node2D.new()

@@ -66,7 +66,6 @@ signal game_over
 signal level_up_triggered
 signal sentry_summoned
 signal temp_sentry_summoned(lifespan: float)  # Bone Harvest: temporary sentry from a dash kill
-signal blood_nova_requested  # Exsanguinate: every 8th kill
 signal shake_requested(strength: float, duration: float)
 signal combo_changed(combo: int)
 signal second_wind_triggered  # Death Defiance talent saved the player
@@ -163,8 +162,9 @@ var dash_damage_pct: float = 0.0     # Phase Ripper: dash damage as fraction of 
 var ricochet_bounces: int = 0        # Wishbone: spent projectiles retarget
 var bloodlust: bool = false          # +0.5%/combo damage, capped +50%
 var _speed_burst_timer: float = 0.0
-var exsanguinate_enabled: bool = false  # Vampire passive: nova every 8th kill
-var _exsanguinate_counter: int = 0
+var dash_chain_jumps: int = 0        # Judgment Chain (Paladin): extra enemies the dash-zap arcs to
+var dash_chain_range: float = 110.0  # max distance between two links in the chain
+var dash_chain_damage_pct: float = 0.0  # weapon damage % dealt per link
 
 const SPEED_BURST_MUL      := 1.4
 const SPEED_BURST_DURATION := 1.5
@@ -243,8 +243,9 @@ func _reset() -> void:
 	ricochet_bounces = 0
 	bloodlust = false
 	_speed_burst_timer = 0.0
-	exsanguinate_enabled = false
-	_exsanguinate_counter = 0
+	dash_chain_jumps = 0
+	dash_chain_range = 110.0
+	dash_chain_damage_pct = 0.0
 	upgrade_stacks = {}
 	_pending_level_ups = 0
 	sentry_count = 0
@@ -261,7 +262,10 @@ func _reset() -> void:
 	sentry_count += int(passive.get("sentry_count", 0))
 	lifesteal_per_kill += int(passive.get("lifesteal_per_kill", 0))
 	dash_damage_pct += float(passive.get("dash_damage_pct", 0.0))
-	exsanguinate_enabled = bool(passive.get("exsanguinate_enabled", 0.0) > 0.0)
+	dash_chain_jumps += int(passive.get("dash_chain_jumps", 0))
+	if passive.has("dash_chain_range"):
+		dash_chain_range = float(passive["dash_chain_range"])
+	dash_chain_damage_pct += float(passive.get("dash_chain_damage_pct", 0.0))
 	draw_bias = character["draw_bias"]
 	player_health = player_max_health
 	score = 0
@@ -272,6 +276,7 @@ func _reset() -> void:
 	_combo_timer = 0.0
 	_regen_accum = 0.0
 	_hitstop_cd = 0.0
+	_last_pickup_time = -100.0
 	_second_wind_used = false
 
 # XP needed to go from `level` to `level + 1`.
@@ -294,11 +299,6 @@ func add_kill_score(enemy_xp: int, is_boss: bool = false) -> void:
 	score += int(enemy_xp * player_level * combo_mul)
 	if lifesteal_per_kill > 0:
 		heal(lifesteal_per_kill)
-	if exsanguinate_enabled:
-		_exsanguinate_counter += 1
-		if _exsanguinate_counter >= 8:
-			_exsanguinate_counter = 0
-			blood_nova_requested.emit()
 	if kill_speed_burst:
 		_speed_burst_timer = SPEED_BURST_DURATION
 	score_changed.emit(score)
@@ -385,6 +385,35 @@ func increase_max_health(amount: int) -> void:
 
 func screen_shake(strength: float, duration: float) -> void:
 	shake_requested.emit(strength, duration)
+
+# --- Field pickups (docs/BALANCE.md §8) -----------------------------------
+# Rescue-not-sustain drops: a non-boss kill may drop a pickup, but only off a
+# run-clock cooldown, so density is time-bounded and does NOT scale with the
+# late-game kill explosion. Bosses drop a guaranteed heal (see Pickup.maybe_drop).
+const PICKUP_HEAL_AMOUNT:   int   = 15    # HP restored by a "heal" pickup
+const PICKUP_DROP_CHANCE:   float = 0.05  # per eligible non-boss kill, once off cooldown
+const PICKUP_DROP_COOLDOWN: float = 10.0  # min seconds between non-boss pickup drops
+var _last_pickup_time: float = -100.0
+
+# True (and consumes the cooldown) when a non-boss kill is allowed to drop a
+# pickup right now. Gated on the run clock so kill volume can't carpet the floor.
+func try_reserve_pickup_drop() -> bool:
+	if elapsed_time - _last_pickup_time < PICKUP_DROP_COOLDOWN:
+		return false
+	if randf() >= PICKUP_DROP_CHANCE:
+		return false
+	_last_pickup_time = elapsed_time
+	return true
+
+# Controller haptics, co-located with screen_shake so callers fire both from the
+# same spot. weak = high-freq motor (0..1), strong = low-freq motor (0..1).
+# No-op without a pad or when disabled in Settings; only device 0 is driven.
+func rumble(weak: float, strong: float, duration: float) -> void:
+	if not Settings.rumble_enabled:
+		return
+	if Input.get_connected_joypads().is_empty():
+		return
+	Input.start_joy_vibration(0, weak, strong, duration)
 
 var _hitstop_depth: int = 0
 

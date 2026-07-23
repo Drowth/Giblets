@@ -103,7 +103,9 @@ func _physics_process(delta: float) -> void:
 			# Spiral toward/away from the orbit ring while circling
 			var radial := dir * clampf((dist - ORBIT_RADIUS) * 0.02, -1.0, 1.0)
 			velocity = (perp + radial).normalized() * move_speed
-			anim_sprite.modulate = BUTCHER_TINT
+			# Guarded so an on-hit flash pop isn't stomped by this per-frame reset.
+			if not HitFlash.is_flashing(anim_sprite):
+				anim_sprite.modulate = BUTCHER_TINT
 			if _state_timer <= 0.0:
 				_state = State.WINDUP
 				_state_timer = WINDUP_DURATION
@@ -216,6 +218,7 @@ func take_hit(dmg: int) -> void:
 		return
 	health -= dmg
 	queue_redraw()
+	HitFlash.flash(anim_sprite, _flash_base())
 	if health <= 0:
 		_die()
 		return
@@ -229,6 +232,11 @@ func take_hit(dmg: int) -> void:
 				_play_anim("windup")
 			State.CHARGE:
 				_play_anim("charge")
+
+# Resting modulate the on-hit flash fades back to (charm green if charmed, else
+# the Butcher's red tint). WINDUP writes its own telegraph flash unconditionally.
+func _flash_base() -> Color:
+	return Color(0.3, 1.0, 0.3) if _charmed else BUTCHER_TINT
 
 func fire_kill() -> void:
 	# Fire bombs chunk bosses for 25% max HP instead of instakilling them
@@ -244,9 +252,11 @@ func _die() -> void:
 	GameState.add_kill_score(xp_value, true)
 	GameState.kill_hitstop(true)
 	GameState.screen_shake(70.0, 0.35)
+	GameState.rumble(0.6, 0.9, 0.4)
 	_play_anim("die")
 	_spawn_blood()
 	_drop_xp()
+	Pickup.maybe_drop(global_position, true)
 	_spawn_bomb()
 	_vacuum_xp_orbs()
 	await get_tree().create_timer(0.5).timeout

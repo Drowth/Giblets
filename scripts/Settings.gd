@@ -15,6 +15,7 @@ var crt_enabled: bool = false
 var crt_affects_enemies: bool = false
 var screen_shake_enabled: bool = true
 var reduce_flash: bool = false
+var rumble_enabled: bool = true
 var fullscreen: bool = false
 var key_overrides: Dictionary = {}  # action name -> physical keycode
 
@@ -86,6 +87,7 @@ func save_settings() -> void:
 	cfg.set_value("video", "crt_enemies", crt_affects_enemies)
 	cfg.set_value("video", "screen_shake", screen_shake_enabled)
 	cfg.set_value("video", "reduce_flash", reduce_flash)
+	cfg.set_value("input", "rumble", rumble_enabled)
 	cfg.set_value("video", "fullscreen", fullscreen)
 	cfg.set_value("input", "overrides", key_overrides)
 	cfg.save(CFG_PATH)
@@ -101,6 +103,7 @@ func load_settings() -> void:
 	crt_affects_enemies = cfg.get_value("video", "crt_enemies", crt_affects_enemies)
 	screen_shake_enabled = cfg.get_value("video", "screen_shake", screen_shake_enabled)
 	reduce_flash = cfg.get_value("video", "reduce_flash", reduce_flash)
+	rumble_enabled = cfg.get_value("input", "rumble", rumble_enabled)
 	fullscreen = cfg.get_value("video", "fullscreen", fullscreen)
 	var overrides = cfg.get_value("input", "overrides", {})
 	if overrides is Dictionary:

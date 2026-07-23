@@ -41,6 +41,7 @@ func _explode() -> void:
 	_done = true
 	set_process(false)
 	Sfx.play(EXPLOSION_SOUND, -1.0)
+	GameState.rumble(0.6, 1.0, 0.4)
 	var main := get_tree().current_scene
 
 	# Kill every enemy instantly with fire

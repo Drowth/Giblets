@@ -181,6 +181,7 @@ func take_hit(dmg: int) -> void:
 		return
 	health -= dmg
 	queue_redraw()
+	HitFlash.flash(anim_sprite, _flash_base())
 	if health <= 0:
 		_die()
 		return
@@ -188,6 +189,11 @@ func take_hit(dmg: int) -> void:
 	await get_tree().create_timer(0.25).timeout
 	if not _dead:
 		_play_anim("run" if velocity.length() > 5.0 else "idle")
+
+# Resting modulate the on-hit flash fades back to: charm green if charmed, else
+# this variant's untinted default.
+func _flash_base() -> Color:
+	return Color(0.3, 1.0, 0.3) if _charmed else Color.WHITE
 
 # Map a direction vector to one of the 8 compass animation suffixes.
 # Screen coords: +y is down, so angle 0 = E and the octants walk E→SE→S→…
@@ -230,8 +236,10 @@ func _die() -> void:
 	_play_anim("die")
 	_spawn_blood()
 	_drop_xp()
+	Pickup.maybe_drop(global_position, is_boss)
 	if is_boss:
 		GameState.screen_shake(70.0, 0.35)
+		GameState.rumble(0.6, 0.9, 0.4)
 		_spawn_bomb()
 		_vacuum_xp_orbs()
 	await get_tree().create_timer(0.45).timeout

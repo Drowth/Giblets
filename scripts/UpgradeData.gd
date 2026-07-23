@@ -136,6 +136,12 @@ const ALL_UPGRADES: Array[Dictionary] = [
 		"color": Color(0.55, 0.9, 0.55),
 		"stat": "orb_heal", "add": 1, "max_stacks": 2
 	},
+	{
+		"id": "chain_range_1", "name": "Overcharge", "rarity": "uncommon", "power": 19,
+		"description": "Judgment Chain's lightning arcs 40% farther",
+		"color": Color(0.55, 0.85, 1.0),
+		"stat": "chain_range", "multiplier": 1.4, "max_stacks": 3, "locked_by_default": true
+	},
 	# ---- rare (25 < P ≤ 40) -------------------------------------------------
 	{
 		"id": "multishot_1", "name": "Twin Barrage", "rarity": "rare", "power": 35,
@@ -202,6 +208,12 @@ const ALL_UPGRADES: Array[Dictionary] = [
 		"description": "It sees what could be: level-ups offer a 4th card",
 		"color": Color(0.55, 0.3, 0.9),
 		"stat": "extra_choice", "max_stacks": 1, "locked_by_default": true
+	},
+	{
+		"id": "chain_jump_1", "name": "Static Zeal", "rarity": "rare", "power": 27,
+		"description": "Judgment Chain arcs to one more enemy",
+		"color": Color(0.4, 0.75, 1.0),
+		"stat": "chain_jump", "add": 1, "max_stacks": 3, "locked_by_default": true
 	},
 	# ---- epic (40 < P ≤ 60) ---------------------------------------------------
 	{
@@ -284,6 +296,12 @@ const ALL_UPGRADES: Array[Dictionary] = [
 		"description": "Double ALL damage. Half your maximum health. Sign here",
 		"color": Color(0.7, 0.0, 0.9),
 		"stat": "faustian", "max_stacks": 1, "locked_by_default": true
+	},
+	{
+		"id": "leg_chain", "name": "Storm of Judgment", "rarity": "legendary", "power": 85,
+		"description": "Judgment Chain arcs to 3 more enemies, reaches twice as far, and hits for full weapon damage",
+		"color": Color(0.5, 0.8, 1.0),
+		"stat": "chain_judgment", "max_stacks": 1, "locked_by_default": true
 	},
 ]
 
@@ -469,3 +487,19 @@ static func apply_upgrade(upgrade: Dictionary) -> void:
 			GameState.player_max_health = maxi(1, GameState.player_max_health / 2)
 			GameState.player_health = mini(GameState.player_health, GameState.player_max_health)
 			GameState.health_changed.emit(GameState.player_health, GameState.player_max_health)
+		"chain_jump":
+			if GameState.dash_chain_damage_pct <= 0.0:
+				GameState.dash_chain_damage_pct = 0.5
+			GameState.dash_chain_jumps += upgrade.get("add", 1)
+		"chain_range":
+			if GameState.dash_chain_jumps <= 0:
+				GameState.dash_chain_jumps = 1
+			if GameState.dash_chain_damage_pct <= 0.0:
+				GameState.dash_chain_damage_pct = 0.5
+			GameState.dash_chain_range *= upgrade.get("multiplier", 1.0)
+		"chain_judgment":
+			if GameState.dash_chain_damage_pct <= 0.0:
+				GameState.dash_chain_damage_pct = 0.5
+			GameState.dash_chain_jumps += 3
+			GameState.dash_chain_range *= 2.0
+			GameState.dash_chain_damage_pct = 1.0

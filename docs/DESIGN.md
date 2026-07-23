@@ -119,10 +119,10 @@ every run by 25.
 
 **Characters** — stat-delta + starting-passive variants. The free default is
 The Wizard (animated 8-directional HD sprite set; save id remains `ghoul`).
-The Reaper and Necromancer are also animated 8-directional HD sets (Reaper:
-DarkLord pack; Necromancer: Witchdoctor pack); the Vampire still uses a
-static sprite. Passives (starting
-crit / sentry / lifesteal) are the *only* sanctioned benders of the
+The Reaper, Necromancer, and Paladin are also animated 8-directional HD sets
+(Reaper: DarkLord pack; Necromancer: Witchdoctor pack; Paladin: Paladin pack)
+— every roster character is now animated. Passives (starting
+crit / sentry / dash-chain) are the *only* sanctioned benders of the
 additive-only rule: each is paid for with a negative delta and validated
 per-character in BalanceSim against the same death-time envelope. The ×3
 draw bias on signature upgrades changes build *texture*, not power — the
@@ -156,6 +156,22 @@ build's feedback loop is the numbers themselves.
 **Combo counter** (2 s window, shown from 5+) exists to make the mid-run
 horde-mulching phase legible, with a small score bonus (+2 %/step, capped ×2)
 so it's felt but never the optimal-play driver.
+
+**On-hit flash, muzzle flash, rumble** — the three cheapest "impact" primitives
+the game was missing. Every enemy's `take_hit` pops a ~90 ms over-bright blink
+(`HitFlash`, a shared static helper — no EnemyBase to extend) so a landed shot
+reads as an impact, not just a health-bar tick; it fades back to the enemy's
+resting modulate (tint or charm-green) and honors Reduce Flash. The weapon now
+throws one procedural muzzle flash per *volley* (not per projectile, so an
+8-shot build doesn't strobe). Controller rumble mirrors the existing screen-shake
+call sites (dash/hurt/second-wind/boss-death/bomb) — never per hit or per kill,
+same reasoning as the kill-gated hit-stop — and is opt-out via a Rumble setting.
+
+**Pickups are a rescue mechanic, not a sustain pillar** — heal/magnet drops are
+run-clock gated so kill volume can't carpet the floor, and sized below the
+existing regen/lifesteal sustain path (numbers + sim caveat in docs/BALANCE.md
+§8). They exist to reward map movement and give a losing fight one more beat,
+not to move the death-time distribution.
 
 ## Architectural choices made under ambiguity
 

@@ -238,8 +238,9 @@ Expected value per pick ≈ 0.45·12 + 0.30·20 + 0.15·32 + 0.07·48 + 0.03·75
 roll rarity by weight, then uniform among that rarity's not-yet-maxed entries
 (re-roll rarity if a tier's pool is exhausted).
 
-Full pool (42 entries, four archetypes: **crit/burst**, **area**, **summons**,
-**sustain**, plus a **quirk** batch that trades raw stats for mechanics).
+Full pool (45 entries, four archetypes: **crit/burst**, **area**, **summons**,
+**sustain**, plus a **quirk** batch that trades raw stats for mechanics —
+including the Judgment Chain (Paladin) dash-zap trio).
 P shows the score that placed each in its band.
 
 | id | name | rarity | effect | P |
@@ -262,6 +263,7 @@ P shows the score that placed each in its band.
 | crit_1 | Keen Edge | uncommon | +8 % crit chance (crits ×2) | 20 |
 | rear_shot | Eyes in the Back | uncommon | bonus shot fired backwards each volley | 20 |
 | orb_heal | Bone Broth | uncommon | XP orbs heal 1 HP (×2 stacks) | 18 |
+| chain_range_1 | Overcharge | uncommon | Judgment Chain arcs 40% farther (×3 stacks) | 19 |
 | multishot_1 | Twin Barrage | rare | +1 projectile | 35 |
 | pierce_1 | Impale | rare | +1 pierce | 30 |
 | knockback_1 | Soul Repel | rare | +220 knockback | 26 |
@@ -273,6 +275,7 @@ P shows the score that placed each in its band.
 | kill_speed | Adrenal Gland | rare | kills grant +40 % speed, 1.5 s | 28 |
 | hurt_nova | Tantrum | rare | taking a hit detonates a nova (×2 stacks) | 30 |
 | extra_choice | Third Eye | rare | level-ups offer a 4th card | 32 |
+| chain_jump_1 | Static Zeal | rare | Judgment Chain arcs to +1 enemy (×3 stacks) | 27 |
 | sentry_1 | Osseous Sentinel | epic | summon a Bone Sentry (max 3) | 45 |
 | dash_knock_1 | Shockwave | epic | dash knockback ×2 | 42 |
 | multishot_2 | Overload | epic | +2 projectiles | 60 |
@@ -286,6 +289,7 @@ P shows the score that placed each in its band.
 | leg_summon | Bone Legion | legendary | +2 sentries, sentries full dmg | 80 |
 | leg_sustain | Gorefeast | legendary | heal 3 HP/kill, +25 % move spd | 75 |
 | leg_faustian | Faustian Bargain | legendary | damage ×2, max HP halved | 85 |
+| leg_chain | Storm of Judgment | legendary | Judgment Chain +3 enemies, ×2 range, 100% weapon dmg per link | 85 |
 
 Stacking caps (`max_stacks` in the dict): sentries cap at 3 (+2 more from Bone
 Legion), crit chance at 60 %, projectile count at 8, pierce at 6, and the
@@ -361,15 +365,16 @@ its signature upgrades into the level-up rotation.
 | The Ghoul | free | — | — | — |
 | The Reaper | 80 | −20 HP | 10 % starting crit | crit_1/2, Deathmark |
 | The Necromancer | 140 | −4 damage | Bone Harvest: starts with a sentry; dash-through deals 50% weapon damage, a killing dash-hit spawns a temporary sentry (12s, max 3) | sentry_1, Bone Legion, Phase Ripper |
-| The Vampire | 220 | +20 HP, −15 speed | Exsanguinate: +1 lifesteal/kill; every 8th kill detonates a blood nova (130px radius, 1.2× weapon dmg) healing 25% of the damage dealt | lifesteal, regen, Gorefeast |
+| The Paladin | 220 | +20 HP, −10 speed | Judgment Chain: dashing into an enemy unleashes a lightning bolt that arcs to 2 more enemies within 110px, each hit for 50% weapon damage | chain_jump_1, chain_range_1, Storm of Judgment |
 
 Total spend (talents + roster) = **963 giblets ≈ 38–40 good runs**.
 
 ### End-of-run upgrade roulette
 
-14 upgrades start locked out of the level-up rotation (`locked_by_default` in
-UpgradeData): all five legendaries + Osseous Sentinel, Overload, Executioner,
-Vampiric Strikes, Shockwave, Third Eye, Phase Ripper, Wishbone, Red Mist.
+16 upgrades start locked out of the level-up rotation (`locked_by_default` in
+UpgradeData): all six legendaries + Osseous Sentinel, Overload, Executioner,
+Vampiric Strikes, Shockwave, Third Eye, Phase Ripper, Wishbone, Red Mist,
+Static Zeal, Overcharge.
 One rarity-weighted spin per run *if* the run survived 5:00 or killed a boss;
 the winner joins the rotation permanently.
 A fresh account therefore plays a thinner pool — BalanceSim baseline median
@@ -377,9 +382,9 @@ A fresh account therefore plays a thinner pool — BalanceSim baseline median
 
 ### Sim acceptance (re-run after ANY change here)
 
-BalanceSim runs 5 profiles (baseline / maxed / maxed×3 characters). Current:
-baseline median 11.3 (p10 6.9), maxed 19.8–19.9 across all characters,
-p90 ≤ 21.4, **zero runs past 25 in every profile** — the §3 overtime wall
+BalanceSim runs 5 profiles (baseline / maxed / maxed×4 characters). Current:
+baseline median ~8.5–11 (p10 ~6.8), maxed 17.1–19.8 across all characters,
+p90 ≤ 22.6, **zero runs past 25 in every profile** — the §3 overtime wall
 holds. Persisted in `user://meta.save` (v2) beside HighScores.
 
 ## 7. Hit-stop and juice budget (why numbers, not vibes)
@@ -389,3 +394,35 @@ wall-clock spent frozen. New: hit-stop **only on kills** (25 ms) and boss
 deaths (80 ms), with a 150 ms cooldown (`HITSTOP_COOLDOWN`) so multishot
 volleys read as one impact. Screen shake: 4 px on hit stays (it is camera-only,
 costs nothing), 70 px boss death, 40 px bomb.
+
+## 8. Field pickups (rescue, not sustain)
+
+Consumable pickups drop from kills as a *rescue/feel* mechanic, deliberately
+sized so they never become a sustain pillar that shifts the death-time
+distribution (docs/DESIGN.md). Constants live in `GameState.gd`:
+
+```
+PICKUP_HEAL_AMOUNT   = 15    # HP restored by a "heal" pickup
+PICKUP_DROP_CHANCE   = 0.05  # per eligible non-boss kill, once off cooldown
+PICKUP_DROP_COOLDOWN = 10.0  # min seconds between non-boss pickup drops
+```
+
+The drop is **run-clock gated, not per-kill**: `GameState.try_reserve_pickup_drop()`
+refuses until `PICKUP_DROP_COOLDOWN` seconds have passed since the last drop, so
+the late-game kill explosion (which the live cap already bounds) cannot carpet
+the floor with heals. Worst-case sustain is one `heal` every 10 s, and only half
+of drops are `heal` (the other half are `magnet`, a pure XP-vacuum with no HP/DPS
+value), so effective healing tops out around **~45 HP/min** — and only if the
+player pathes to each orb (pickups don't auto-magnet and expire after 18 s). By
+comparison the `regen_per_5s` and lifesteal upgrades already provide sustain on
+the DPS-budget path; pickups sit below that.
+
+Bosses drop a **guaranteed** heal on death — a fixed, once-per-90 s reward that
+does not compound.
+
+**Sim caveat.** `BalanceSim` is an analytic horde model and does not simulate
+field pickups. The tuning above is intentionally kept below the sim's fidelity
+floor: at ≤45 HP/min against per-minute incoming damage that reaches the
+hundreds by minute 12+, the pickup contribution is within run-to-run noise. If
+`PICKUP_HEAL_AMOUNT` or the cooldown is ever loosened materially, add an explicit
+heal term to the sim before shipping and re-check the death-time histogram.

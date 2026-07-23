@@ -1,9 +1,9 @@
 extends Node2D
 
 # One-shot expanding ring for Hellfire Rounds explosions and nova effects
-# (Tantrum, Exsanguinate). Procedural _draw() per project style — no sprite
-# exists for this. Colors default to the original fire palette; callers that
-# want a different tone (e.g. the Vampire's blood nova) use set_colors().
+# (Tantrum). Procedural _draw() per project style — no sprite exists for this.
+# Colors default to the original fire palette; callers that want a different
+# tone use set_colors().
 
 var _life: float = 0.0
 const DURATION := 0.22

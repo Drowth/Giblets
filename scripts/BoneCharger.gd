@@ -102,7 +102,9 @@ func _physics_process(delta: float) -> void:
 			var to_player_walk := _player.global_position - global_position
 			var walk_dir := to_player_walk.normalized() if to_player_walk.length_squared() > 0.0001 else _last_dir
 			velocity = walk_dir * move_speed
-			anim_sprite.modulate = Color.WHITE
+			# Guarded so an on-hit flash pop isn't stomped by this per-frame reset.
+			if not HitFlash.is_flashing(anim_sprite):
+				anim_sprite.modulate = Color.WHITE
 			if _state_timer <= 0.0:
 				_state = State.WINDUP
 				_state_timer = WINDUP_DURATION
@@ -208,6 +210,7 @@ func take_hit(dmg: int) -> void:
 		return
 	health -= dmg
 	queue_redraw()
+	HitFlash.flash(anim_sprite, _flash_base())
 	if health <= 0:
 		_die()
 		return
@@ -221,6 +224,11 @@ func take_hit(dmg: int) -> void:
 				_play_anim("windup")
 			State.CHARGE:
 				_play_anim("charge")
+
+# Resting modulate the on-hit flash fades back to (charm green if charmed). The
+# WINDUP telegraph writes its own flash unconditionally, so a pop there is fine.
+func _flash_base() -> Color:
+	return Color(0.3, 1.0, 0.3) if _charmed else Color.WHITE
 
 func fire_kill() -> void:
 	if _dead:
@@ -242,6 +250,7 @@ func _die() -> void:
 	_play_anim("die")
 	_spawn_blood()
 	_drop_xp()
+	Pickup.maybe_drop(global_position, false)
 	# Arm the death burst — _physics_process keeps running for the fuse.
 	# Fuse scales down with enemy density so late-game corpses don't pile up.
 	_fuse = GameState.get_corpse_linger(BURST_FUSE_BASE)

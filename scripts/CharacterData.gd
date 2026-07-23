@@ -57,16 +57,17 @@ const CHARACTERS: Dictionary = {
 		"passive_desc": "Starts with a Bone Sentry. Dashing through enemies deals 50% weapon damage; a killing dash-hit binds the soul into a temporary Bone Sentry for 12s (max 3 active)",
 		"draw_bias": {"sentry_1": DRAW_BIAS_WEIGHT, "leg_summon": DRAW_BIAS_WEIGHT, "dash_damage": DRAW_BIAS_WEIGHT},
 	},
-	"vampire": {
-		"name": "The Vampire",
-		"desc": "Slow, stout, and always feeding.",
+	"paladin": {
+		"name": "The Paladin",
+		"desc": "Smite through the horde — every dash ends in a chain of judgment.",
 		"cost": 220,
-		"sprite_path": "res://assets/player/player3.png",
-		"sprite_scale": 0.12,
-		"deltas": {"max_health": 20, "move_speed": -15},
-		"passive": {"lifesteal_per_kill": 1, "exsanguinate_enabled": 1.0},
-		"passive_desc": "Heals 1 HP on every kill. Every 8th kill detonates a blood nova, dealing AoE damage and healing 25% of the damage dealt",
-		"draw_bias": {"lifesteal_1": DRAW_BIAS_WEIGHT, "regen_1": DRAW_BIAS_WEIGHT, "leg_sustain": DRAW_BIAS_WEIGHT},
+		"animated": true,
+		"sprite_path": "res://assets/player/paladin/idle/S/001.png",  # select-card portrait
+		"sprite_scale": 0.7,    # 128px HD frames, matches the Reaper/Necromancer sets
+		"deltas": {"max_health": 20, "move_speed": -10},
+		"passive": {"dash_chain_jumps": 2, "dash_chain_range": 110.0, "dash_chain_damage_pct": 0.5},
+		"passive_desc": "Judgment Chain: dashing into an enemy unleashes a lightning bolt that arcs to 2 more enemies within 110px, each hit for 50% weapon damage",
+		"draw_bias": {"chain_jump_1": DRAW_BIAS_WEIGHT, "chain_range_1": DRAW_BIAS_WEIGHT, "leg_chain": DRAW_BIAS_WEIGHT},
 	},
 }
 

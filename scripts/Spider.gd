@@ -157,6 +157,7 @@ func take_hit(dmg: int) -> void:
 		return
 	health -= dmg
 	queue_redraw()
+	HitFlash.flash(anim_sprite, _flash_base())
 	if health <= 0:
 		_die()
 		return
@@ -164,6 +165,10 @@ func take_hit(dmg: int) -> void:
 	await get_tree().create_timer(0.25).timeout
 	if not _dead:
 		_play_anim("run" if velocity.length() > 5.0 else "idle")
+
+# Resting modulate the on-hit flash fades back to (charm green if charmed).
+func _flash_base() -> Color:
+	return Color(0.3, 1.0, 0.3) if _charmed else Color.WHITE
 
 func fire_kill() -> void:
 	if _dead:
@@ -187,6 +192,7 @@ func _die() -> void:
 	_play_anim("die")
 	_spawn_blood()
 	_drop_xp()
+	Pickup.maybe_drop(global_position, false)
 	await get_tree().create_timer(0.45).timeout
 	# Corpse linger: scales down as enemy density rises
 	var linger := GameState.get_corpse_linger(CORPSE_LINGER_BASE)

@@ -87,6 +87,10 @@ func _rebuild() -> void:
 		Settings.reduce_flash = not Settings.reduce_flash
 		Settings.save_settings()
 		_rebuild())
+	_add_toggle("Rumble", Settings.rumble_enabled, func():
+		Settings.rumble_enabled = not Settings.rumble_enabled
+		Settings.save_settings()
+		_rebuild())
 	_add_toggle("Fullscreen", Settings.fullscreen, func():
 		Settings.fullscreen = not Settings.fullscreen
 		Settings.apply_all()

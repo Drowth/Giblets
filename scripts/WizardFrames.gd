@@ -13,6 +13,7 @@ const DIRECTIONS: Array[String] = ["E", "N", "NE", "NW", "S", "SE", "SW", "W"]
 const WIZARD_PATH      := "res://assets/player/wizard"
 const REAPER_PATH      := "res://assets/player/reaper"
 const NECROMANCER_PATH := "res://assets/player/necromancer"
+const PALADIN_PATH     := "res://assets/player/paladin"
 # anim -> [fps, loops]
 const WIZARD_ANIMS: Dictionary = {
 	"idle": [12.0, true],
@@ -37,6 +38,17 @@ const NECROMANCER_ANIMS: Dictionary = {
 	"die":  [34.0, false],
 	"hurt": [60.0, false],
 }
+# Paladin pack (D:\Assets\...\4Paladin): idle/run/roll(Rolling)/die/hurt
+# (TakeDamage) all 15 frames each, same 128px HD frame size and 8-direction
+# layout as the Reaper/Witchdoctor sets — hurt fps scaled down to keep the
+# same ~0.3s read time despite fewer source frames (15 vs 18).
+const PALADIN_ANIMS: Dictionary = {
+	"idle": [10.0, true],
+	"run":  [16.0, true],
+	"roll": [30.0, false],  # dash uses the Paladin's Rolling animation
+	"die":  [34.0, false],
+	"hurt": [50.0, false],
+}
 
 static var _cache: Dictionary = {}  # base_path -> SpriteFrames
 
@@ -48,6 +60,9 @@ static func get_reaper_frames() -> SpriteFrames:
 
 static func get_necromancer_frames() -> SpriteFrames:
 	return build(NECROMANCER_PATH, NECROMANCER_ANIMS)
+
+static func get_paladin_frames() -> SpriteFrames:
+	return build(PALADIN_PATH, PALADIN_ANIMS)
 
 static func build(base_path: String, anims: Dictionary) -> SpriteFrames:
 	if _cache.has(base_path):

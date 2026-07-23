@@ -50,7 +50,7 @@ func _ready() -> void:
 		{"label": "MAXED TALENTS — full pool, Ghoul",            "maxed": true,  "character": "ghoul"},
 		{"label": "MAXED TALENTS — full pool, Reaper",           "maxed": true,  "character": "reaper"},
 		{"label": "MAXED TALENTS — full pool, Necromancer",      "maxed": true,  "character": "necromancer"},
-		{"label": "MAXED TALENTS — full pool, Vampire",          "maxed": true,  "character": "vampire"},
+		{"label": "MAXED TALENTS — full pool, Paladin",          "maxed": true,  "character": "paladin"},
 	]
 	for profile in profiles:
 		_apply_profile(profile)
