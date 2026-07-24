@@ -55,6 +55,15 @@ func _clear_panel() -> void:
 		_panel.queue_free()
 	_panel = null
 
+const MENU_TITLE_FONT := 20
+const MENU_SUB_FONT   := 6
+const MENU_SPACER     := 4
+const MENU_V_MARGIN   := 8  # breathing room so the column never touches the edges
+const CHAR_CARD_PAD   := 6  # character card inner inset (3 top + 3 bottom)
+# Largest-first; the first combination that fits the viewport wins.
+const MENU_FONT_STEPS := [10, 9, 8, 7, 6, 5]
+const MENU_SEP_STEPS  := [4, 3, 2]
+
 func _show_main() -> void:
 	_clear_panel()
 
@@ -64,59 +73,73 @@ func _show_main() -> void:
 	_panel = center
 	_ui_layer.add_child(center)
 
+	# Rows as data so the column can be rebuilt at different sizes while fitting.
+	var rows: Array = [
+		{"text": "START GAME", "color": Color(1.0, 0.45, 0.0), "cb": func():
+			Sfx.play(SELECT_BIG_SOUND, -2.0)
+			get_tree().change_scene_to_file("res://scenes/Main.tscn")},
+		{"text": "CHARACTERS", "color": Color(0.75, 0.45, 0.95), "cb": _show_characters},
+		{"text": "STAGE", "color": Color(0.45, 0.70, 0.95), "cb": _show_stages},
+		{"text": "TALENTS  (%d giblets)" % Meta.giblets, "color": Color(0.95, 0.35, 0.30), "cb": _show_talents},
+		{"text": "UPGRADES", "color": Color(0.45, 0.85, 0.85), "cb": _show_upgrades},
+		{"text": "HIGH SCORES", "color": Color(1.0, 0.85, 0.1), "cb": _show_high_scores},
+		{"text": "OPTIONS", "color": Color(0.55, 0.80, 0.55), "cb": _show_options},
+		{"text": "CREDITS", "color": Color(0.55, 0.50, 0.60), "cb": _show_credits},
+	]
+
+	# Size the column to the viewport rather than hard-coding a font: build at
+	# the largest font/separation, measure, and step down until it fits. Adding
+	# a row later shrinks the menu automatically instead of running off-screen.
+	var avail := get_viewport_rect().size.y - MENU_V_MARGIN
+	var vbox: VBoxContainer = null
+	for font_size in MENU_FONT_STEPS:
+		for sep in MENU_SEP_STEPS:
+			var candidate := _build_main_column(rows, font_size, sep)
+			center.add_child(candidate)
+			if candidate.get_combined_minimum_size().y <= avail:
+				vbox = candidate
+				break
+			center.remove_child(candidate)
+			candidate.free()
+		if vbox:
+			break
+	if vbox == null:  # smaller than the smallest step: take the tightest and clip
+		vbox = _build_main_column(rows, MENU_FONT_STEPS[-1], MENU_SEP_STEPS[-1])
+		center.add_child(vbox)
+
+	var first := vbox.get_meta("first_button") as Button
+	if first:
+		first.grab_focus()
+
+func _build_main_column(rows: Array, font_size: int, sep: int) -> VBoxContainer:
 	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 4)
-	center.add_child(vbox)
+	vbox.add_theme_constant_override("separation", sep)
 
 	var title := Label.new()
 	title.text = "GIBLETS"
-	title.add_theme_font_size_override("font_size", 20)
+	title.add_theme_font_size_override("font_size", MENU_TITLE_FONT)
 	title.add_theme_color_override("font_color", Color(0.88, 0.06, 0.06))
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(title)
 
 	var sub := Label.new()
 	sub.text = "survive the horde"
-	sub.add_theme_font_size_override("font_size", 6)
+	sub.add_theme_font_size_override("font_size", MENU_SUB_FONT)
 	sub.add_theme_color_override("font_color", Color(0.50, 0.38, 0.38))
 	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(sub)
 
-	_add_spacer(vbox, 4)
+	_add_spacer(vbox, MENU_SPACER)
 
-	# font 9 → "mid" margins in _make_button: six rows must fit 216 units.
-	var start_btn := _make_button("START GAME", Color(1.0, 0.45, 0.0), false, 9)
-	start_btn.pressed.connect(func():
-		Sfx.play(SELECT_BIG_SOUND, -2.0)
-		get_tree().change_scene_to_file("res://scenes/Main.tscn")
-	)
-	vbox.add_child(start_btn)
-
-	var chars_btn := _make_button("CHARACTERS", Color(0.75, 0.45, 0.95), false, 9)
-	chars_btn.pressed.connect(_show_characters)
-	vbox.add_child(chars_btn)
-
-	var stage_btn := _make_button("STAGE", Color(0.45, 0.70, 0.95), false, 9)
-	stage_btn.pressed.connect(_show_stages)
-	vbox.add_child(stage_btn)
-
-	var talents_btn := _make_button("TALENTS  (%d giblets)" % Meta.giblets, Color(0.95, 0.35, 0.30), false, 9)
-	talents_btn.pressed.connect(_show_talents)
-	vbox.add_child(talents_btn)
-
-	var scores_btn := _make_button("HIGH SCORES", Color(1.0, 0.85, 0.1), false, 9)
-	scores_btn.pressed.connect(_show_high_scores)
-	vbox.add_child(scores_btn)
-
-	var options_btn := _make_button("OPTIONS", Color(0.55, 0.80, 0.55), false, 9)
-	options_btn.pressed.connect(_show_options)
-	vbox.add_child(options_btn)
-
-	var credits_btn := _make_button("CREDITS", Color(0.55, 0.50, 0.60), false, 9)
-	credits_btn.pressed.connect(_show_credits)
-	vbox.add_child(credits_btn)
-
-	start_btn.grab_focus()
+	var first: Button = null
+	for r in rows:
+		var btn := _make_button(r["text"], r["color"], false, font_size)
+		btn.pressed.connect(r["cb"])
+		vbox.add_child(btn)
+		if first == null:
+			first = btn
+	vbox.set_meta("first_button", first)
+	return vbox
 
 func _show_options() -> void:
 	_clear_panel()
@@ -144,6 +167,12 @@ const BRANCH_COLORS: Dictionary = {
 	"utility": Color(0.40, 0.85, 0.45),
 }
 
+const TALENT_NODE_SIZE := Vector2(56, 26)
+const TALENT_TIERS := [1, 2, 3]
+
+var _talent_refund_mode := false
+var _talent_focus_id := ""  # survives the rebuild after a buy/refund
+
 func _show_talents() -> void:
 	_clear_panel()
 
@@ -160,113 +189,307 @@ func _show_talents() -> void:
 	overlay.add_child(center)
 
 	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 3)
+	vbox.add_theme_constant_override("separation", 2)
 	center.add_child(vbox)
 
 	var title := Label.new()
 	title.text = "— TALENTS —"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 12)
+	title.add_theme_font_size_override("font_size", 10)
 	title.add_theme_color_override("font_color", Color(0.95, 0.35, 0.30))
 	vbox.add_child(title)
 
 	var bank := Label.new()
 	bank.text = "%d giblets" % Meta.giblets
 	bank.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	bank.add_theme_font_size_override("font_size", 8)
+	bank.add_theme_font_size_override("font_size", 7)
 	bank.add_theme_color_override("font_color", Color(1.0, 0.85, 0.1))
 	vbox.add_child(bank)
 
-	_add_spacer(vbox, 2)
-
-	# Shared detail label, fed by focus/hover on every talent button — no
-	# hover popups at 384×216.
+	# Shared detail label, fed by focus/hover on every talent node — no hover
+	# popups at 384×216. Declared early so nodes can capture it.
 	var detail := Label.new()
 
 	var columns := HBoxContainer.new()
-	columns.add_theme_constant_override("separation", 6)
+	columns.add_theme_constant_override("separation", 5)
 	columns.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vbox.add_child(columns)
 
+	var nodes: Array = []
+	var focus_target: Button = null
+
 	for branch: String in Meta.BRANCHES:
 		var col := VBoxContainer.new()
-		col.add_theme_constant_override("separation", 2)
-		col.custom_minimum_size = Vector2(112, 0)
+		col.add_theme_constant_override("separation", 1)
+		col.custom_minimum_size = Vector2(118, 0)
 		columns.add_child(col)
 
 		var header := Label.new()
 		header.text = branch.to_upper()
 		header.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		header.add_theme_font_size_override("font_size", 7)
+		header.add_theme_font_size_override("font_size", 6)
 		header.add_theme_color_override("font_color", BRANCH_COLORS[branch])
 		col.add_child(header)
 
 		var pts := Label.new()
 		pts.text = "%d pts" % Meta.points_in(branch)
 		pts.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		pts.add_theme_font_size_override("font_size", 5)
+		pts.add_theme_font_size_override("font_size", 4)
 		pts.add_theme_color_override("font_color", BRANCH_COLORS[branch].darkened(0.35))
 		col.add_child(pts)
 
-		for id: String in Meta.TALENTS:
-			var info: Dictionary = Meta.TALENTS[id]
-			if info["branch"] != branch:
-				continue
-			col.add_child(_make_talent_button(id, info, detail))
-
-	_add_spacer(vbox, 2)
+		# One row per tier, with a connector between them — this is what makes
+		# the 3-tier structure in Meta.TALENTS actually legible.
+		for tier: int in TALENT_TIERS:
+			if tier > 1:
+				col.add_child(_make_tier_connector(branch, tier))
+			var row := HBoxContainer.new()
+			row.alignment = BoxContainer.ALIGNMENT_CENTER
+			row.add_theme_constant_override("separation", 3)
+			row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			col.add_child(row)
+			for id: String in Meta.TALENTS:
+				var info: Dictionary = Meta.TALENTS[id]
+				if info["branch"] != branch or int(info["tier"]) != tier:
+					continue
+				var node := _make_talent_node(id, info, detail)
+				row.add_child(node)
+				nodes.append(node)
+				if id == _talent_focus_id:
+					focus_target = node
 
 	detail.text = " \n "
 	detail.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	detail.add_theme_font_size_override("font_size", 6)
+	detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	detail.add_theme_font_size_override("font_size", 5)
 	detail.add_theme_color_override("font_color", Color(0.8, 0.75, 0.7))
-	detail.custom_minimum_size = Vector2(340, 16)
+	detail.custom_minimum_size = Vector2(340, 14)
 	vbox.add_child(detail)
 
-	var back_btn := _make_button("BACK", Color(0.7, 0.7, 0.7), true)
-	var back_wrap := CenterContainer.new()
-	back_wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	back_wrap.add_child(back_btn)
-	vbox.add_child(back_wrap)
-	back_btn.pressed.connect(_show_main)
-	back_btn.grab_focus()
+	var footer := HBoxContainer.new()
+	footer.alignment = BoxContainer.ALIGNMENT_CENTER
+	footer.add_theme_constant_override("separation", 4)
+	footer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vbox.add_child(footer)
 
-func _make_talent_button(id: String, info: Dictionary, detail: Label) -> Button:
-	var r := Meta.rank(id)
-	var maxed := r >= int(info["max"])
-	var gated := not Meta.tier_unlocked(id)
-	var text: String
-	var color: Color
-	var detail_text: String
-	if gated:
-		var need := Meta.tier_points_required(int(info["tier"]))
-		text = "%s  LOCKED" % info["name"]
-		color = Color(0.45, 0.40, 0.45)
-		detail_text = "%s — %s\nSpend %d points in %s to unlock" % [info["name"], info["desc"], need, str(info["branch"]).to_upper()]
-	elif maxed:
-		text = "%s  %d/%d" % [info["name"], r, int(info["max"])]
-		color = Color(0.4, 0.9, 0.4)
-		detail_text = "%s — %s\nMAXED" % [info["name"], info["desc"]]
-	else:
-		text = "%s  %d/%d (%d)" % [info["name"], r, int(info["max"]), Meta.cost(id)]
-		color = Color(1.0, 0.85, 0.1) if Meta.can_buy(id) else Color(0.5, 0.45, 0.5)
-		detail_text = "%s — %s\nCost: %d giblets" % [info["name"], info["desc"], Meta.cost(id)]
-
-	var btn := _make_button(text, color, false, 5, 112)
-	btn.disabled = gated or maxed or not Meta.can_buy(id)
-	if btn.disabled:
-		btn.modulate.a = 0.6
-		if not maxed and not gated:
-			btn.mouse_entered.connect(func(): Sfx.play(DISALLOW_SOUND, -8.0))
-	var show_detail := func(): detail.text = detail_text
-	btn.mouse_entered.connect(show_detail)
-	btn.focus_entered.connect(show_detail)
-	btn.pressed.connect(func():
-		if Meta.buy(id):
-			Sfx.play(COIN_SOUND, -4.0)
-			_show_talents()
+	# Mode toggle rather than right-click only: menus are fully gamepad
+	# navigable, so refund needs an input a pad can reach.
+	var mode_btn := _make_button(
+		"MODE: REFUND" if _talent_refund_mode else "MODE: BUY",
+		Color(1.0, 0.55, 0.35) if _talent_refund_mode else Color(0.55, 0.80, 0.55),
+		false, 7, 92)
+	mode_btn.pressed.connect(func():
+		_talent_refund_mode = not _talent_refund_mode
+		_show_talents()
 	)
-	return btn
+	footer.add_child(mode_btn)
+
+	var back_btn := _make_button("BACK", Color(0.7, 0.7, 0.7), true, 7, 70)
+	back_btn.pressed.connect(_show_main)
+	footer.add_child(back_btn)
+
+	if focus_target:
+		focus_target.grab_focus()
+	else:
+		back_btn.grab_focus()
+
+	_fit_talent_tree(vbox, nodes)
+
+# Vertical link between two tier rows: branch-coloured once the tier is open,
+# dark plus its point requirement while still gated.
+func _make_tier_connector(branch: String, tier: int) -> Control:
+	var wrap := CenterContainer.new()
+	wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 2)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	wrap.add_child(row)
+
+	var need := Meta.tier_points_required(tier)
+	var open: bool = Meta.points_in(branch) >= need
+
+	var line := ColorRect.new()
+	line.custom_minimum_size = Vector2(2, 6)
+	line.color = BRANCH_COLORS[branch] if open else Color(0.22, 0.20, 0.22)
+	line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(line)
+
+	if not open:
+		var lbl := Label.new()
+		lbl.text = "needs %d" % need
+		lbl.add_theme_font_size_override("font_size", 4)
+		lbl.add_theme_color_override("font_color", Color(0.55, 0.48, 0.55))
+		lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		row.add_child(lbl)
+	return wrap
+
+# Rank pips as ColorRects — deliberately not a unicode bullet, so this doesn't
+# depend on the fallback font having glyph coverage.
+func _make_pip_row(r: int, max_rank: int, filled: Color) -> Control:
+	var wrap := CenterContainer.new()
+	wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 1)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	wrap.add_child(row)
+	for i in max_rank:
+		var pip := ColorRect.new()
+		pip.custom_minimum_size = Vector2(3, 3)
+		pip.color = filled if i < r else Color(0.24, 0.21, 0.24)
+		pip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		row.add_child(pip)
+	return wrap
+
+func _make_talent_node(id: String, info: Dictionary, detail: Label) -> Button:
+	var r := Meta.rank(id)
+	var max_rank := int(info["max"])
+	var branch: String = info["branch"]
+	var bcol: Color = BRANCH_COLORS[branch]
+	var gated := not Meta.tier_unlocked(id)
+	var maxed := r >= max_rank
+	var affordable := Meta.can_buy(id)
+
+	# States are conveyed by colour, NOT by `disabled` — using disabled for
+	# affordability made every talent look identically dead when giblets were low.
+	var border: Color
+	var name_col: Color
+	var status_text: String
+	var status_col: Color
+	if gated:
+		border = Color(0.28, 0.25, 0.28)
+		name_col = Color(0.48, 0.44, 0.48)
+		status_text = "LOCKED"
+		status_col = Color(0.55, 0.48, 0.55)
+	elif maxed:
+		border = Color(0.35, 0.85, 0.40)
+		name_col = Color(0.85, 1.00, 0.85)
+		status_text = "MAX"
+		status_col = Color(0.45, 0.90, 0.45)
+	elif affordable:
+		border = bcol
+		name_col = Color(0.97, 0.95, 0.92)
+		status_text = "%d g" % Meta.cost(id)
+		status_col = Color(1.0, 0.85, 0.1)
+	else:
+		border = bcol.darkened(0.55)
+		name_col = Color(0.72, 0.68, 0.72) if r > 0 else Color(0.55, 0.51, 0.55)
+		status_text = "%d g" % Meta.cost(id)
+		status_col = Color(0.60, 0.52, 0.40)
+
+	var node := Button.new()
+	node.custom_minimum_size = TALENT_NODE_SIZE
+	var norm := StyleBoxFlat.new()
+	norm.bg_color = Color(0.09, 0.05, 0.05) if not gated else Color(0.05, 0.045, 0.05)
+	norm.border_color = border
+	norm.set_border_width_all(1)
+	norm.set_corner_radius_all(2)
+	node.add_theme_stylebox_override("normal", norm)
+	var hover := norm.duplicate() as StyleBoxFlat
+	hover.bg_color = Color(0.17, 0.08, 0.03)
+	hover.border_color = border.lightened(0.3)
+	node.add_theme_stylebox_override("hover", hover)
+	node.add_theme_stylebox_override("focus", hover)
+	node.add_theme_stylebox_override("pressed", norm)
+
+	var inner := VBoxContainer.new()
+	inner.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	inner.offset_left = 2
+	inner.offset_right = -2
+	inner.offset_top = 2
+	inner.offset_bottom = -2
+	inner.add_theme_constant_override("separation", 1)
+	inner.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	node.add_child(inner)
+
+	var name_lbl := Label.new()
+	name_lbl.text = info["name"]
+	name_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	name_lbl.add_theme_font_size_override("font_size", 4)
+	name_lbl.add_theme_constant_override("line_spacing", -1)
+	name_lbl.add_theme_color_override("font_color", name_col)
+	name_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	inner.add_child(name_lbl)
+
+	inner.add_child(_make_pip_row(r, max_rank, Color(0.45, 0.90, 0.45) if maxed else bcol))
+
+	var status_lbl := Label.new()
+	status_lbl.text = status_text
+	status_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	status_lbl.add_theme_font_size_override("font_size", 4)
+	status_lbl.add_theme_color_override("font_color", status_col)
+	status_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	inner.add_child(status_lbl)
+
+	var show_detail := func():
+		_talent_focus_id = id
+		detail.text = _talent_detail_text(id, info)
+	node.mouse_entered.connect(func():
+		Sfx.play(HOVER_SOUND, -9.0, 0.03)
+		show_detail.call()
+	)
+	node.focus_entered.connect(show_detail)
+	node.pressed.connect(func():
+		_talent_focus_id = id
+		if _talent_refund_mode:
+			_try_talent_refund(id)
+		else:
+			_try_talent_buy(id)
+	)
+	# Mouse shortcut: right-click always refunds regardless of mode.
+	node.gui_input.connect(func(ev: InputEvent):
+		if ev is InputEventMouseButton and ev.pressed \
+				and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_RIGHT:
+			_talent_focus_id = id
+			_try_talent_refund(id)
+	)
+	return node
+
+func _talent_detail_text(id: String, info: Dictionary) -> String:
+	var r := Meta.rank(id)
+	if _talent_refund_mode:
+		if r <= 0:
+			return "%s — nothing to refund" % info["name"]
+		var blocker := Meta.refund_blocker(id)
+		if blocker != "":
+			return "%s — refund blocked: would lock %s" % [info["name"], blocker]
+		return "%s — refund 1 rank: +%d giblets (%d%% back)" % [
+			info["name"], Meta.refund_value(id), int(Meta.REFUND_RATE * 100.0)]
+	if not Meta.tier_unlocked(id):
+		return "%s — %s\nSpend %d points in %s to unlock" % [info["name"], info["desc"],
+			Meta.tier_points_required(int(info["tier"])), str(info["branch"]).to_upper()]
+	if r >= int(info["max"]):
+		return "%s — %s\nMAXED" % [info["name"], info["desc"]]
+	return "%s — %s\nCost: %d giblets" % [info["name"], info["desc"], Meta.cost(id)]
+
+func _try_talent_buy(id: String) -> void:
+	if Meta.buy(id):
+		Sfx.play(COIN_SOUND, -4.0)
+		_show_talents()
+	else:
+		Sfx.play(DISALLOW_SOUND, -8.0)
+
+func _try_talent_refund(id: String) -> void:
+	if Meta.refund(id):
+		Sfx.play(COIN_SOUND, -4.0)
+		_show_talents()
+	else:
+		Sfx.play(DISALLOW_SOUND, -8.0)
+
+# The tree is the densest screen in the game; if it overruns the 216-unit
+# viewport, pull the height out of the three tier rows rather than clipping.
+func _fit_talent_tree(vbox: Control, nodes: Array) -> void:
+	await get_tree().process_frame
+	if not is_instance_valid(vbox) or nodes.is_empty():
+		return
+	var over: float = vbox.get_combined_minimum_size().y - (get_viewport_rect().size.y - MENU_V_MARGIN)
+	if over <= 0.0:
+		return
+	var per_row := ceilf(over / float(TALENT_TIERS.size()))
+	for n in nodes:
+		if not is_instance_valid(n):
+			return
+		n.custom_minimum_size.y = maxf(18.0, n.custom_minimum_size.y - per_row)
 
 func _show_characters() -> void:
 	_clear_panel()
@@ -308,8 +531,11 @@ func _show_characters() -> void:
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vbox.add_child(row)
 
+	var cards: Array = []
 	for id: String in CharacterData.CHARACTERS:
-		row.add_child(_make_character_card(id))
+		var card := _make_character_card(id)
+		row.add_child(card)
+		cards.append(card)
 
 	_add_spacer(vbox, 2)
 
@@ -320,6 +546,41 @@ func _show_characters() -> void:
 	vbox.add_child(back_wrap)
 	back_btn.pressed.connect(_show_main)
 	back_btn.grab_focus()
+
+	_fit_character_cards(vbox, cards)
+
+# Cards are fixed-size Buttons with an anchored inner VBox, so a long passive
+# description spills past the border instead of growing the card (that's what
+# clipped the Necromancer/Paladin text). Measure what the tallest card actually
+# needs, grow every card to match, and only shrink the description font if the
+# content still can't fit the space the viewport leaves over.
+func _fit_character_cards(vbox: Control, cards: Array) -> void:
+	await get_tree().process_frame
+	if not is_instance_valid(vbox) or cards.is_empty():
+		return
+	for c in cards:
+		if not is_instance_valid(c):
+			return
+	var avail := get_viewport_rect().size.y - MENU_V_MARGIN
+	var slack: float = avail - vbox.get_combined_minimum_size().y
+	var max_h: float = float(cards[0].custom_minimum_size.y) + slack
+	var needed := _cards_needed_height(cards)
+	if needed > max_h:
+		for c in cards:
+			(c.get_meta("desc_label") as Label).add_theme_font_size_override("font_size", 4)
+		await get_tree().process_frame
+		if not is_instance_valid(vbox):
+			return
+		needed = _cards_needed_height(cards)
+	for c in cards:
+		c.custom_minimum_size.y = minf(needed, max_h)
+
+func _cards_needed_height(cards: Array) -> float:
+	var needed := 0.0
+	for c in cards:
+		var inner := c.get_child(0) as Control
+		needed = maxf(needed, inner.get_combined_minimum_size().y + CHAR_CARD_PAD)
+	return needed
 
 func _make_character_card(id: String) -> Button:
 	var info: Dictionary = CharacterData.CHARACTERS[id]
@@ -394,6 +655,7 @@ func _make_character_card(id: String) -> Button:
 
 	var desc_lbl := Label.new()
 	desc_lbl.text = _character_summary(info)
+	card.set_meta("desc_label", desc_lbl)  # _fit_character_cards may shrink this
 	desc_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	desc_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	desc_lbl.add_theme_font_size_override("font_size", 5)
@@ -427,6 +689,168 @@ func _make_character_card(id: String) -> Button:
 			_show_characters()
 		else:
 			Sfx.play(DISALLOW_SOUND, -8.0)
+	)
+
+	return card
+
+# Upgrade collection: every entry in the pool as a card, grouped by rarity.
+# Unlocked entries show in their rarity colour; still-locked roulette entries
+# (locked_by_default and not yet won) are greyed out. Read-only gallery — the
+# cards are focusable so d-pad/keyboard navigation auto-scrolls the grid.
+const UPGRADE_RARITY_ORDER := ["common", "uncommon", "rare", "epic", "legendary"]
+
+func _show_upgrades() -> void:
+	_clear_panel()
+
+	var overlay := ColorRect.new()
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	overlay.color = Color(0.0, 0.0, 0.0, 0.88)
+	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	_panel = overlay
+	_ui_layer.add_child(overlay)
+
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	overlay.add_child(center)
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 2)
+	center.add_child(vbox)
+
+	# Sort a copy by rarity band so the gallery reads as a collection.
+	var entries: Array = []
+	for u in UpgradeData.ALL_UPGRADES:
+		entries.append(u)
+	entries.sort_custom(func(a, b):
+		var ra := UPGRADE_RARITY_ORDER.find(a.get("rarity", "common"))
+		var rb := UPGRADE_RARITY_ORDER.find(b.get("rarity", "common"))
+		return ra < rb
+	)
+
+	var unlocked_count := 0
+	for u in entries:
+		if _is_upgrade_collected(u):
+			unlocked_count += 1
+
+	var title := Label.new()
+	title.text = "— UPGRADE COLLECTION —"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 9)
+	title.add_theme_color_override("font_color", Color(0.45, 0.85, 0.85))
+	vbox.add_child(title)
+
+	var count := Label.new()
+	count.text = "%d / %d unlocked   ·   locked entries are won from the end-of-run roulette" % [
+		unlocked_count, entries.size()]
+	count.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	count.add_theme_font_size_override("font_size", 4)
+	count.add_theme_color_override("font_color", Color(0.62, 0.58, 0.62))
+	vbox.add_child(count)
+
+	var scroll := ScrollContainer.new()
+	scroll.custom_minimum_size = Vector2(352, 158)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	vbox.add_child(scroll)
+
+	var grid := GridContainer.new()
+	grid.columns = 4
+	grid.add_theme_constant_override("h_separation", 3)
+	grid.add_theme_constant_override("v_separation", 3)
+	scroll.add_child(grid)
+
+	var first_card: Button = null
+	for u in entries:
+		var card := _make_upgrade_card(u)
+		grid.add_child(card)
+		if first_card == null:
+			first_card = card
+
+	var back_btn := _make_button("BACK", Color(0.7, 0.7, 0.7), true, 8, 120)
+	var back_wrap := CenterContainer.new()
+	back_wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	back_wrap.add_child(back_btn)
+	vbox.add_child(back_wrap)
+	back_btn.pressed.connect(_show_main)
+	back_btn.grab_focus()
+
+# An upgrade counts as collected if it was never roulette-gated, or if it has
+# since been won (Meta.unlocked_upgrades — also filled by character purchases).
+func _is_upgrade_collected(u: Dictionary) -> bool:
+	if not u.get("locked_by_default", false):
+		return true
+	return Meta.is_upgrade_unlocked(u.get("id", ""))
+
+func _make_upgrade_card(u: Dictionary) -> Button:
+	var unlocked := _is_upgrade_collected(u)
+	var rarity: String = u.get("rarity", "common")
+	var rc: Color = UpgradeData.RARITY_COLORS.get(rarity, Color.WHITE)
+	# Locked cards keep a dimmed hint of their rarity so you can see what's missing.
+	var border_color := rc if unlocked else rc.darkened(0.68)
+
+	var card := Button.new()
+	# 4 across in a 384-wide viewport. Height fits the longest description at
+	# font 4 (3 wrapped lines) — the inner VBox is anchored full-rect, so it does
+	# NOT grow the button; text that outgrows this height would spill the border.
+	card.custom_minimum_size = Vector2(84, 44)
+	var norm := StyleBoxFlat.new()
+	norm.bg_color = Color(0.07, 0.03, 0.03) if unlocked else Color(0.045, 0.04, 0.045)
+	norm.border_color = border_color
+	norm.set_border_width_all(1)
+	norm.set_corner_radius_all(3)
+	card.add_theme_stylebox_override("normal", norm)
+	var hover := norm.duplicate() as StyleBoxFlat
+	hover.bg_color = Color(0.15, 0.06, 0.02) if unlocked else Color(0.09, 0.08, 0.09)
+	hover.border_color = border_color.lightened(0.25)
+	card.add_theme_stylebox_override("hover", hover)
+	card.add_theme_stylebox_override("focus", hover)
+	card.add_theme_stylebox_override("pressed", norm)
+
+	var inner := VBoxContainer.new()
+	inner.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	inner.offset_left = 2
+	inner.offset_right = -2
+	inner.offset_top = 2
+	inner.offset_bottom = -2
+	inner.add_theme_constant_override("separation", 0)
+	inner.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.add_child(inner)
+
+	var name_lbl := Label.new()
+	name_lbl.text = u.get("name", "?")
+	name_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	name_lbl.add_theme_font_size_override("font_size", 5)
+	name_lbl.add_theme_constant_override("line_spacing", -1)
+	name_lbl.add_theme_color_override("font_color",
+		Color(0.95, 0.92, 0.90) if unlocked else Color(0.44, 0.42, 0.44))
+	name_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	inner.add_child(name_lbl)
+
+	var desc_lbl := Label.new()
+	desc_lbl.text = u.get("description", "")
+	desc_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	desc_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	desc_lbl.add_theme_font_size_override("font_size", 4)
+	desc_lbl.add_theme_constant_override("line_spacing", -1)
+	desc_lbl.add_theme_color_override("font_color",
+		Color(0.66, 0.62, 0.66) if unlocked else Color(0.32, 0.30, 0.32))
+	desc_lbl.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	desc_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	inner.add_child(desc_lbl)
+
+	var status_lbl := Label.new()
+	status_lbl.text = rarity.to_upper() if unlocked else "LOCKED"
+	status_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	status_lbl.add_theme_font_size_override("font_size", 4)
+	status_lbl.add_theme_color_override("font_color",
+		rc if unlocked else Color(0.55, 0.45, 0.30))
+	status_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	inner.add_child(status_lbl)
+
+	card.mouse_entered.connect(func():
+		Sfx.play(HOVER_SOUND, -9.0, 0.03)
 	)
 
 	return card

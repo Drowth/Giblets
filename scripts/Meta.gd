@@ -120,6 +120,57 @@ func buy(id: String) -> bool:
 	_save()
 	return true
 
+# --- Refund / respec (docs/BALANCE.md §6) ---
+# Refunds are limited economically rather than by a counter or a second
+# currency: you get REFUND_RATE of what a rank cost back, so re-optimising is
+# always possible but always lossy. Nothing extra is persisted — `ranks` and
+# `giblets` already cover it, so SAVE_VERSION stays put.
+const REFUND_RATE := 0.75
+
+# Giblets returned for removing the TOP rank of `id`.
+# NOTE: cost() is the price of the NEXT rank (base × (rank+1)); the price
+# actually PAID for the current top rank is base × rank. Refunding against
+# cost() would pay out more than was ever spent and make buy→refund→buy a
+# giblet farm — so this deliberately uses base × rank, then takes REFUND_RATE.
+func refund_value(id: String) -> int:
+	var r := rank(id)
+	if r <= 0:
+		return 0
+	return int(floor(int(TALENTS[id]["cost"]) * r * REFUND_RATE))
+
+# "" when the refund is allowed, otherwise the NAME of the talent that would be
+# stranded below its tier requirement. Refunds are blocked rather than cascaded
+# so a click can never silently unwind more than one rank.
+func refund_blocker(id: String) -> String:
+	if rank(id) <= 0:
+		return ""
+	var branch: String = TALENTS[id]["branch"]
+	var after := points_in(branch) - 1
+	for other: String in TALENTS:
+		if TALENTS[other]["branch"] != branch:
+			continue
+		# Check the talent being refunded at its REDUCED rank, so refunding it
+		# down to 0 doesn't report itself as the blocker.
+		var r_after := rank(other) - (1 if other == id else 0)
+		if r_after <= 0:
+			continue
+		if after < tier_points_required(int(TALENTS[other]["tier"])):
+			return str(TALENTS[other]["name"])
+	return ""
+
+func can_refund(id: String) -> bool:
+	return rank(id) > 0 and refund_blocker(id) == ""
+
+func refund(id: String) -> bool:
+	if not can_refund(id):
+		return false
+	giblets += refund_value(id)
+	ranks[id] = rank(id) - 1
+	if int(ranks[id]) <= 0:
+		ranks.erase(id)
+	_save()
+	return true
+
 # --- Bonus getters, consumed by GameState._reset() ---
 func bonus_max_health() -> int:
 	return int(rank("hp") * TALENTS["hp"]["per"])

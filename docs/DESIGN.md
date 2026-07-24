@@ -117,6 +117,16 @@ damage — multipliers scale off a barely-higher floor, so maxed talents shift
 the median death from ~17 to ~20 min and the §3 overtime wall still ends
 every run by 25.
 
+**Talent refunds are limited by loss, not by a counter.** Respeccing returns
+75 % of a rank's price (docs/BALANCE.md §6). A respec counter or a second
+"respec token" currency would both mean new persisted state and a new thing for
+the player to ration; a partial rate needs neither and self-limits — you can
+always re-optimise, you just never do it for free. The rate is applied to the
+price *paid* for the top rank rather than to `cost()` (the price of the next
+rank), which is what keeps buy→refund→buy strictly lossy instead of a giblet
+farm. Refunds that would strand an owned higher-tier talent are blocked rather
+than cascaded, so one click can never unwind more than the rank you aimed at.
+
 **Characters** — stat-delta + starting-passive variants. The free default is
 The Wizard (animated 8-directional HD sprite set; save id remains `ghoul`).
 The Reaper, Necromancer, and Paladin are also animated 8-directional HD sets

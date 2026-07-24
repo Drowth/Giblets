@@ -354,6 +354,31 @@ multiplicative DPS path. Cost per rank = `base × (rank+1)`.
 Full board **523 giblets**. The five pre-talent unlock ids (`hp, damage,
 speed, magnet, xp`) are reused verbatim, so v1 saves migrate losslessly.
 
+**Refunds (`Meta.REFUND_RATE = 0.75`).** Talents refund one rank at a time and
+return 75 % of what that rank cost. The partial rate *is* the limiter — there is
+no respec counter and no second currency, so nothing new is persisted
+(`SAVE_VERSION` stays 2).
+
+The load-bearing property: **a refund can never return more than was paid.**
+`Meta.cost()` is the price of the *next* rank (`base × (rank+1)`), so
+`refund_value()` deliberately prices the *current top* rank
+(`floor(base × rank × 0.75)`). Refunding against `cost()` would pay out more
+than was ever spent and make buy→refund→buy a giblet farm.
+
+| talent | top rank paid | refunded | loss |
+|---|---|---|---|
+| Sharp Fangs (base 6, r4) | 24 | 18 | 6 |
+| Death Defiance (base 45, r1) | 45 | 33 | 12 |
+| Greedy Soul (base 4, r3) | 12 | 9 | 3 |
+
+Unwinding a maxed Sharp Fangs returns 18+13+9+4 = 44 of the 60 spent (~73 %).
+Verified across all 13 talents at every rank, plus a refund→re-buy round trip
+(strictly negative), by a headless probe.
+
+A refund that would drop a branch below the point threshold for a *higher-tier
+talent already owned* is **blocked**, not cascaded, and names the talent that
+would be stranded — one click can never silently unwind more than one rank.
+
 ### Characters (CharacterData.gd)
 
 Additive stat deltas + one starting passive + a ×3 draw-weight bias on

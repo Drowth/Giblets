@@ -66,14 +66,32 @@ func _ready() -> void:
 # Called at _ready() (rectangular WORLD_SIZE default, since Main hasn't set
 # any stage bounds yet — Player is a child, so its _ready() runs first) and
 # again by Main._setup_stage_floor() once a non-rectangular stage's bounds
-# are known. Camera2D can only clip to a rectangle, so this uses the stage
-# bounds' axis-aligned bounding box, not the polygon itself.
+# are known. Camera2D can only clip to a rectangle, so this is only a coarse
+# outer safety net for non-rectangular stages — _update_camera_for_bounds()
+# below does the real work of keeping the camera off screen-filling voids
+# outside the polygon (e.g. City's diamond only covers ~half its own AABB).
 func refresh_camera_limits() -> void:
 	var r := GameState.stage_bounds_rect()
 	camera.limit_left   = int(r.position.x)
 	camera.limit_top    = int(r.position.y)
 	camera.limit_right  = int(r.position.x + r.size.x)
 	camera.limit_bottom = int(r.position.y + r.size.y)
+
+# For non-rectangular stages, camera.limit_* (a rectangle) still lets the
+# camera pan right up to the polygon's bounding box, revealing whatever
+# non-walkable filler is outside the diamond well before the player is
+# anywhere near it. Pull the camera itself in — not just the player — by
+# offsetting it (as a local position relative to the player) to the nearest
+# point that keeps the whole viewport inside the polygon.
+func _update_camera_for_bounds() -> void:
+	if GameState.stage_bounds_polygon.is_empty():
+		if camera.position != Vector2.ZERO:
+			camera.position = Vector2.ZERO
+		return
+	var half_extent := (get_viewport().get_visible_rect().size / 2.0) / camera.zoom
+	var margin := minf(half_extent.x, half_extent.y)
+	var target := GameState.clamp_to_stage_bounds(global_position, margin)
+	camera.position = target - global_position
 
 func _add_light() -> void:
 	var light := PointLight2D.new()
@@ -269,6 +287,7 @@ func _physics_process(delta: float) -> void:
 		velocity = _dash_dir * DASH_SPEED
 		move_and_slide()
 		global_position = GameState.clamp_to_stage_bounds(global_position, 20.0)
+		_update_camera_for_bounds()
 		if _animated_mode:
 			_play_anim("roll")
 		queue_redraw()
@@ -299,6 +318,7 @@ func _physics_process(delta: float) -> void:
 		velocity = velocity.move_toward(Vector2.ZERO, effective_speed)
 	move_and_slide()
 	global_position = GameState.clamp_to_stage_bounds(global_position, 20.0)
+	_update_camera_for_bounds()
 
 	var moving := velocity.length() > 5.0
 	if moving:
@@ -552,7 +572,7 @@ func _spawn_muzzle_flash(dir: Vector2) -> void:
 	flash.set_script(MUZZLE_FLASH)
 	get_parent().add_child(flash)
 	# Sit the flash a little in front of the player, along the fire direction.
-	flash.global_position = global_position + dir.normalized() * 14.0
+	flash.global_position = global_position + dir.normalized() * 18.0
 	flash.setup(dir)
 
 func _spawn_dash_dust() -> void:
